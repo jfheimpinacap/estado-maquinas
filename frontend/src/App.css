@@ -1,0 +1,20 @@
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+#root {
+  display: flex;
+  flex-direction: row;
+}
+
+main {
+  flex: 1;
+  padding: 2rem;
+  background: #f5f5f5; /* Fondo claro para distinguir */
+  color: #111;
+}
+
+
+
