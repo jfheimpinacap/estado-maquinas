@@ -28,6 +28,7 @@ Estado de maquinas/
 │
 └── README.md # Este archivo
 ```
+
 ---
 
 ## ⚙️ Instalación y Ejecución
@@ -37,6 +38,10 @@ Estado de maquinas/
 git clone https://github.com/jfheimpinacap/estado-maquinas.git
 cd estado-maquinas
 ```
+
+---
+
+
 🔹 2. Backend (Flask)
 Entrar a la carpeta del backend:
 ```
@@ -62,6 +67,8 @@ python app.py
 ```
 Por defecto corre en http://localhost:5000
 
+---
+
 🔹 3. Frontend (React + Vite)
 
 Entrar a la carpeta del frontend:
@@ -78,6 +85,8 @@ npm run dev
 ```
 Por defecto corre en http://localhost:5173
 
+---
+
 📡 API (Backend Flask)
 
 Algunos endpoints expuestos:
@@ -88,6 +97,8 @@ Algunos endpoints expuestos:
 - POST /clientes → Crea nuevo cliente
 - GET /clientes/<id> → Ver cliente específico
 
+---
+
 🎨 Frontend (React)
 
 El frontend incluye:
@@ -96,6 +107,8 @@ El frontend incluye:
 - CRUD de clientes
 - Búsqueda y visualización de clientes
 - Notificaciones con react-toastify
+
+---
 
 🚀 Despliegue futuro
 Backend
@@ -106,6 +119,7 @@ Frontend
 npm run build
 ```
 
+---
 👨‍💻 Autor
 Proyecto creado por Franz Heimpel (INACAP)
 GitHub: @jfheimpinacap
