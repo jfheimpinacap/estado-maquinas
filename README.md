@@ -1,115 +1,122 @@
-# Estado de Máquinas 🚜
+# 📦 Proyecto Estado de Máquinas
 
-Aplicación fullstack para la **gestión de maquinarias y clientes**, desarrollada con:
-
-- **Backend:** Python (Flask)
-- **Frontend:** React + Vite + TailwindCSS
-- **Base de Datos:** SQL (usando `schema.sql` y `setup_db.py`)
+Este proyecto es parte de la asignatura **Proyecto de Software**.  
+Consiste en una aplicación web para la **gestión de maquinarias, clientes y arriendos**, con un **frontend en React** y un **backend en Django** conectado a **SQL Server**.
 
 ---
 
-## 📂 Estructura del Proyecto
+## 📂 Estructura de carpetas
+
 ```
-Estado de maquinas/
+App web Estado de maquinas/
+├── backend/ # Backend con Django
+│ ├── api/ # App principal con modelos, views, urls
+│ ├── estado_maquinas/ # Configuración del proyecto Django
+│ ├── manage.py
+│ └── .env # Variables de entorno (no subir a GitHub)
 │
-├── backend/ # Servidor Flask (API REST)
-│ ├── app.py # Punto de entrada del backend
-│ ├── models.py # Modelos de la BD
-│ ├── routes.py # Endpoints REST
-│ ├── schema.sql # Script SQL para crear tablas
-│ ├── setup_db.py # Configuración de la BD
-│ └── ...
-│
-├── frontend/ # Aplicación React (interfaz)
-│ ├── src/ # Componentes y lógica del frontend
-│ ├── public/ # Archivos estáticos
-│ ├── package.json # Dependencias de Node
-│ └── ...
+├── frontend/ # Frontend con React + Vite + Tailwind
+│ ├── src/ # Componentes React
+│ ├── public/
+│ ├── package.json
+│ └── vite.config.js
 │
 └── README.md # Este archivo
 ```
+---
+
+## 🚀 Requisitos previos
+
+- **Python 3.10+**  
+- **Node.js 18+**  
+- **SQL Server Express** (con usuario `sa` habilitado)  
+- **Git**  
 
 ---
 
-## ⚙️ Instalación y Ejecución
+## ⚙️ Configuración del Backend (Django)
 
-🔹 1. Clonar el repositorio
-```
-git clone https://github.com/jfheimpinacap/estado-maquinas.git
-cd estado-maquinas
-```
-
----
-
-
-🔹 2. Backend (Flask)
-Entrar a la carpeta del backend:
+1. Entrar en la carpeta backend:
 ```
 cd backend
 ```
-Crear entorno virtual e instalar dependencias:
+---
+Crear y activar un entorno virtual:
 ```
 python -m venv .venv
-.venv\Scripts\activate   # En Windows PowerShell
-source .venv/bin/activate # En Linux/Mac
+.venv\Scripts\activate   # Windows PowerShell
 ```
-Instalar dependencias necesarias:
+---
+Instalar dependencias:
 ```
-pip install flask flask-cors
+pip install django djangorestframework mssql-django pyodbc python-dotenv django-cors-headers
 ```
-Inicializar la base de datos (opcional):
+Crear el archivo .env (basado en .env.example):
 ```
-python setup_db.py
+DJANGO_SECRET_KEY=clave-super-secreta
+DB_NAME=MaquinasClientes
+DB_USER=sa
+DB_PASSWORD=TU_PASSWORD
+DB_HOST=FRANZ-PC\SQLEXPRESS
+DB_DRIVER=ODBC Driver 17 for SQL Server
+DB_EXTRA=TrustServerCertificate=yes;
 ```
-Ejecutar el servidor:
+
+Aplicar migraciones:
 ```
-python app.py
+python manage.py makemigrations api
+python manage.py migrate
 ```
-Por defecto corre en http://localhost:5000
+
+Levantar el servidor:
+```
+python manage.py runserver
+```
+👉 El backend estará en: http://127.0.0.1:8000/
 
 ---
+🎨 Configuración del Frontend (React + Vite + Tailwind)
 
-🔹 3. Frontend (React + Vite)
-
-Entrar a la carpeta del frontend:
+Entrar en la carpeta frontend:
 ```
 cd frontend
 ```
+
 Instalar dependencias:
 ```
 npm install
 ```
-Ejecutar el servidor de desarrollo:
+
+Levantar el servidor de desarrollo:
 ```
 npm run dev
 ```
-Por defecto corre en http://localhost:5173
+👉 El frontend estará en: http://localhost:5173/
+---
+🔗 Conexión Frontend ↔ Backend
+
+En el frontend usamos una variable de entorno para la URL del backend.
+En frontend/.env:
+```
+VITE_BACKEND_URL=http://127.0.0.1:8000
+```
+Así, cuando React haga un fetch, apuntará al backend de Django.
 
 ---
+📌 Endpoints principales (API REST)
 
-📡 API (Backend Flask)
-
-Algunos endpoints expuestos:
-
-- GET /maquinarias → Lista todas las maquinarias
-- POST /maquinarias → Crea nueva maquinaria
-- GET /clientes → Lista todos los clientes
-- POST /clientes → Crea nuevo cliente
-- GET /clientes/<id> → Ver cliente específico
-
----
-
-🎨 Frontend (React)
-
-El frontend incluye:
-- Sidebar de navegación (secciones para clientes y maquinarias)
-- CRUD de maquinarias
-- CRUD de clientes
-- Búsqueda y visualización de clientes
-- Notificaciones con react-toastify
+GET /clientes → listar clientes
+POST /clientes → crear cliente
+GET /maquinarias → listar maquinarias
+POST /maquinarias → crear maquinaria
+GET /obras → listar obras
+POST /obras → crear obra
+GET /arriendos → listar arriendos
+POST /arriendos → crear arriendo (verifica disponibilidad)
+GET /documentos → listar documentos
+POST /documentos → crear documento (si es Guía Retiro, libera maquinaria)
 
 ---
-
 🚀 Despliegue futuro
 Backend
 - Puede desplegarse en Render, Railway o Heroku con una BD PostgreSQL o MySQL.
@@ -121,5 +128,5 @@ npm run build
 
 ---
 👨‍💻 Autor
-Proyecto creado por Franz Heimpel (INACAP)
+Proyecto creado por Franz Heim (INACAP)
 GitHub: @jfheimpinacap
