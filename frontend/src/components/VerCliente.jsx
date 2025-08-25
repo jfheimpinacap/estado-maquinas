@@ -6,7 +6,7 @@ export default function VerCliente({ cliente, setView }) {
       <h1 className="text-2xl font-bold mb-4 text-gray-800">Datos del Cliente</h1>
 
       <div className="mb-4">
-        <p><strong>Nombre:</strong> {cliente.nombre}</p>
+        <p><strong>Nombre:</strong> {cliente.razon_social}</p>
         <p><strong>RUT:</strong> {cliente.rut}</p>
         {/* Agrega más campos según tu modelo */}
       </div>

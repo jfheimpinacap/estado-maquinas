@@ -10,18 +10,20 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState([])
 
-  const handleBuscar = async () => {
-    try {
-      const response = await fetch(
-        `http://localhost:5000/clientes?query=${encodeURIComponent(query)}`
-      )
-      if (!response.ok) throw new Error('Error al buscar clientes')
-      const data = await response.json()
-      setResultados(data)
-    } catch (error) {
-      console.error('❌ Error en la búsqueda:', error)
-    }
+const backendURL = import.meta.env.VITE_BACKEND_URL
+
+const handleBuscar = async () => {
+  try {
+    const response = await fetch(
+      `${backendURL}/clientes?query=${encodeURIComponent(query)}`
+    );
+    if (!response.ok) throw new Error('Error al buscar clientes')
+    const data = await response.json();
+    setResultados(data);
+  } catch (error) {
+    console.error('❌ Error en la búsqueda:', error)
   }
+}
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {

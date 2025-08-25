@@ -23,3 +23,19 @@ Frontend/dist/
 Frontend/npm-debug.log*
 Frontend/yarn-error.log*
 Frontend/pnpm-lock.yaml
+
+# Python / Django
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+.env
+.env.*
+
+# Virtual envs
+venv/
+.venv/
+
+# Django static (si algún día colectas)
+staticfiles/
