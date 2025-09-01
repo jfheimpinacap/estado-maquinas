@@ -105,16 +105,16 @@ Así, cuando React haga un fetch, apuntará al backend de Django.
 ---
 📌 Endpoints principales (API REST)
 
-GET /clientes → listar clientes
-POST /clientes → crear cliente
-GET /maquinarias → listar maquinarias
-POST /maquinarias → crear maquinaria
-GET /obras → listar obras
-POST /obras → crear obra
-GET /arriendos → listar arriendos
-POST /arriendos → crear arriendo (verifica disponibilidad)
-GET /documentos → listar documentos
-POST /documentos → crear documento (si es Guía Retiro, libera maquinaria)
+- GET /clientes → listar clientes
+- POST /clientes → crear cliente
+- GET /maquinarias → listar maquinarias
+- POST /maquinarias → crear maquinaria
+- GET /obras → listar obras
+- POST /obras → crear obra
+- GET /arriendos → listar arriendos
+- POST /arriendos → crear arriendo (verifica disponibilidad)
+- GET /documentos → listar documentos
+- POST /documentos → crear documento (si es Guía Retiro, libera maquinaria)
 
 ---
 🚀 Despliegue futuro
