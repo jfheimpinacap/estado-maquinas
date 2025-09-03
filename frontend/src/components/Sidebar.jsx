@@ -1,3 +1,4 @@
+// src/components/Sidebar.jsx
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -14,28 +15,24 @@ export default function Sidebar({ setView }) {
   const toggleMenu = (menu) => setOpenMenu(openMenu === menu ? null : menu)
 
   const mainButtonClass =
-    'w-full flex justify-between items-center text-left py-3 px-4 text-white rounded-none shadow transition'
+    'w-full flex justify-between items-center text-left py-3 px-4 rounded-md shadow transition bg-[rgb(238,108,77)] hover:bg-[rgb(255,102,0)]'
   const submenuButtonClass =
-    'w-full text-left py-2 px-5 text-white rounded-none transition'
+    'w-full text-left py-2 px-5 rounded-md transition bg-[rgb(61,90,128)] hover:bg-[rgb(152,193,217)]'
 
   return (
     <aside
-      className="min-h-screen p-5 flex flex-col w-72"
+      className="sidebar min-h-screen p-5 flex flex-col w-80"
       style={{ backgroundColor: C.fondoColumna }}
     >
-      <h1 className="text-base font-semibold mb-4 tracking-wide text-white">
+      <h1 className="text-lg font-semibold mb-5 tracking-wide">
         Panel de Control
       </h1>
 
       {/* CLIENTES */}
-      <div className="mb-2">
-        <button
-          onClick={() => toggleMenu('clientes')}
-          className={mainButtonClass}
-          style={{ backgroundColor: C.botonPrincipal }}
-        >
-          <span>Clientes</span>
-          {openMenu === 'clientes' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      <div className="mb-3">
+        <button onClick={() => toggleMenu('clientes')} className={mainButtonClass}>
+          <span className="text-base">Clientes</span>
+          {openMenu === 'clientes' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </button>
 
         <AnimatePresence>
@@ -44,7 +41,7 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col mt-2 overflow-hidden rounded-none"
+              className="flex flex-col gap-1 mt-2"
               style={{ backgroundColor: C.submenu }}
             >
               {[
@@ -70,14 +67,10 @@ export default function Sidebar({ setView }) {
       </div>
 
       {/* MAQUINARIAS */}
-      <div className="mb-2">
-        <button
-          onClick={() => toggleMenu('maquinarias')}
-          className={mainButtonClass}
-          style={{ backgroundColor: C.botonPrincipal }}
-        >
-          <span>Maquinarias</span>
-          {openMenu === 'maquinarias' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      <div className="mb-3">
+        <button onClick={() => toggleMenu('maquinarias')} className={mainButtonClass}>
+          <span className="text-base">Maquinarias</span>
+          {openMenu === 'maquinarias' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </button>
 
         <AnimatePresence>
@@ -86,7 +79,7 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col mt-2 overflow-hidden"
+              className="flex flex-col gap-1 mt-2"
               style={{ backgroundColor: C.submenu }}
             >
               {[
@@ -112,14 +105,10 @@ export default function Sidebar({ setView }) {
       </div>
 
       {/* DOCUMENTOS */}
-      <div className="mb-2">
-        <button
-          onClick={() => toggleMenu('documentos')}
-          className={mainButtonClass}
-          style={{ backgroundColor: C.botonPrincipal }}
-        >
-          <span>Documentos</span>
-          {openMenu === 'documentos' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      <div className="mb-3">
+        <button onClick={() => toggleMenu('documentos')} className={mainButtonClass}>
+          <span className="text-base">Documentos</span>
+          {openMenu === 'documentos' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </button>
 
         <AnimatePresence>
@@ -128,7 +117,7 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col mt-2 overflow-hidden"
+              className="flex flex-col gap-1 mt-2"
               style={{ backgroundColor: C.submenu }}
             >
               {['Guías', 'Facturas'].map((label) => (
@@ -149,14 +138,10 @@ export default function Sidebar({ setView }) {
       </div>
 
       {/* ESTADO */}
-      <div className="mb-2">
-        <button
-          onClick={() => toggleMenu('estado')}
-          className={mainButtonClass}
-          style={{ backgroundColor: C.botonPrincipal }}
-        >
-          <span>Estado</span>
-          {openMenu === 'estado' ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      <div className="mb-3">
+        <button onClick={() => toggleMenu('estado')} className={mainButtonClass}>
+          <span className="text-base">Estado</span>
+          {openMenu === 'estado' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </button>
 
         <AnimatePresence>
@@ -165,7 +150,7 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col mt-2 overflow-hidden"
+              className="flex flex-col gap-1 mt-2"
               style={{ backgroundColor: C.submenu }}
             >
               <button
@@ -184,6 +169,8 @@ export default function Sidebar({ setView }) {
     </aside>
   )
 }
+
+
 
 
 

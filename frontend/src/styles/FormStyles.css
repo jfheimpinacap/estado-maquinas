@@ -1,13 +1,15 @@
 .form-section {
   max-width: 600px;
-  margin: 2rem auto;
+  /* lleva el formulario un poco más a la izquierda respecto al main */
+  margin: 2rem 0 2rem 1.5rem; /* top right bottom left */
   background: #ffffff;
   padding: 2rem;
   border-radius: 15px;
   box-shadow: 0 8px 20px rgba(0,0,0,0.1);
 }
 
-.form-section h1 {
+.form-section h1,
+.form-section h2 {
   font-size: 1.8rem;
   font-weight: 700;
   margin-bottom: 1.5rem;
@@ -15,11 +17,14 @@
 }
 
 .form-input {
+  box-sizing: border-box;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.9rem 1.5rem;  /* un pelín más alto */
   border: 1px solid #ccc;
   border-radius: 10px;
   font-size: 1rem;
+  background: rgb(224, 251, 252);
+  color: #000;
 }
 
 .form-input:focus {
@@ -38,9 +43,68 @@
   border-radius: 12px;
   transition: transform .3s ease, box-shadow .3s ease;
   box-shadow: 0 4px 10px rgba(0,0,0,.3);
+  margin-top: 2rem; /* separa del último campo */
+  cursor: pointer;
 }
 
 .btn-form:hover {
   transform: scale(1.05);
   box-shadow: 0 6px 14px rgba(0,0,0,.5);
 }
+
+/* Tarjeta ancha para listados / tablas */
+.panel-section {
+  max-width: 900px;
+  margin: 0 0 2rem 1.5rem; /* un poco hacia la izquierda para alinear con form-section */
+  background: #ffffff;
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+/* Mesa estilizada */
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table-wrap table thead th {
+  background: linear-gradient(to right, #f1842d, #ff6600);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.75rem 0.75rem;
+  white-space: nowrap;
+}
+
+.table-wrap table tbody td {
+  padding: 0.75rem 0.75rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+/* Botón peque para acciones en la tabla (mismo ADN visual que .btn-form) */
+.btn-sm-orange {
+  background: linear-gradient(to right, #f1842d, #ff6600);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 10px;
+  transition: transform .2s ease, box-shadow .2s ease;
+  box-shadow: 0 3px 8px rgba(0,0,0,.25);
+}
+.btn-sm-orange:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(0,0,0,.35);
+}
+
+/* Variante gris del botón principal (para "Limpiar") */
+.btn-form.btn-form--gray {
+  background: linear-gradient(to right, #9aa0a6, #80868b);
+}
+.btn-form.btn-form--gray:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 14px rgba(0,0,0,.35);
+}
+

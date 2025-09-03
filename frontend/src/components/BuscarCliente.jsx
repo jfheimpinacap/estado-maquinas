@@ -1,29 +1,23 @@
 import { useState } from 'react'
 
-const C = {
-  barraEntrada: 'rgb(224, 251, 252)',     // fondo input
-  btn: 'rgb(238, 108, 77)',               // botón naranja
-  headerTabla: 'rgb(238, 108, 77)',       // cabecera tabla
-}
-
 export default function BuscarCliente({ setView, setSelectedCliente }) {
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState([])
 
-const backendURL = import.meta.env.VITE_BACKEND_URL
+  const backendURL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
-const handleBuscar = async () => {
-  try {
-    const response = await fetch(
-      `${backendURL}/clientes?query=${encodeURIComponent(query)}`
-    );
-    if (!response.ok) throw new Error('Error al buscar clientes')
-    const data = await response.json();
-    setResultados(data);
-  } catch (error) {
-    console.error('❌ Error en la búsqueda:', error)
+  const handleBuscar = async () => {
+    try {
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(query)}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Error al buscar clientes')
+      const data = await res.json()
+      setResultados(data)
+    } catch (err) {
+      console.error('❌ Error en la búsqueda:', err)
+      setResultados([])
+    }
   }
-}
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -38,73 +32,80 @@ const handleBuscar = async () => {
   }
 
   return (
-    <section className="max-w-5xl mx-auto p-10 rounded-xl shadow-lg mt-8 bg-white">
-      <h1 className="text-2xl font-semibold mb-4 text-gray-800">Buscar Cliente</h1>
+    <div className="space-y-6">
+      {/* Tarjeta angosta de búsqueda */}
+      <section className="form-section">
+        <h1>Buscar Cliente</h1>
 
-      {/* Bloque buscador más angosto */}
-      <div className="flex gap-2 mb-5 w-[520px] max-w-full">
-        <input
-          type="text"
-          placeholder="Buscar por nombre o RUT"
-          className="border px-4 h-10 rounded-none flex-1"
-          style={{ backgroundColor: C.barraEntrada, color: '#000' }}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <button
-          onClick={handleBuscar}
-          className="text-white px-3 h-10 text-sm rounded-none hover:opacity-90 transition"
-          style={{ backgroundColor: C.btn }}
-        >
-          Buscar
-        </button>
-        <button
-          onClick={handleLimpiar}
-          className="text-white px-3 h-10 text-sm rounded-none hover:opacity-90 transition"
-          style={{ backgroundColor: '#888' }}
-        >
-          Limpiar
-        </button>
-      </div>
+        <div className="flex items-center gap-2 mb-6">
+          <input
+            type="text"
+            placeholder="Buscar por Razón Social o RUT"
+            className="form-input w-80"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={{ background: 'rgb(224, 251, 252)', color: '#000' }}
+          />
 
-      {/* Tabla */}
-      <table className="w-full border text-left">
-        <thead style={{ backgroundColor: C.headerTabla }}>
-          <tr className="text-white text-center">
-            <th className="p-2">Nombre</th>
-            <th className="p-2">RUT</th>
-            <th className="p-2">Dirección</th>
-            <th className="p-2">Teléfono</th>
-            <th className="p-2">Forma de Pago</th>
-            <th className="p-2">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {resultados.map((cliente) => (
-            <tr key={cliente.id} className="border-b text-black text-center">
-              <td className="p-2">{cliente.razon_social}</td>
-              <td className="p-2">{cliente.rut}</td>
-              <td className="p-2">{cliente.direccion}</td>
-              <td className="p-2">{cliente.telefono}</td>
-              <td className="p-2">{cliente.forma_pago}</td>
-              <td className="p-2">
-                <button
-                  onClick={() => {
-                    setSelectedCliente(cliente)
-                    setView('ver-cliente')
-                  }}
-                  className="text-white px-3 py-1 text-xs rounded-none hover:opacity-90 transition"
-                  style={{ backgroundColor: C.btn }}
-                >
-                  Ver Cliente
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
+          <button type="button" onClick={handleBuscar} className="btn-form px-4 py-2">
+            Buscar
+          </button>
+
+          <button type="button" onClick={handleLimpiar} className="btn-form btn-form--gray px-4 py-2">
+            Limpiar
+          </button>
+        </div>
+      </section>
+
+      {/* Tarjeta ancha de resultados */}
+      <section className="panel-section">
+        <div className="table-wrap">
+          <table className="w-full text-left">
+            <thead>
+              <tr>
+                <th>Razón Social</th>
+                <th>RUT</th>
+                <th>Dirección</th>
+                <th>Teléfono</th>
+                <th>Forma de Pago</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resultados.length === 0 ? (
+                <tr>
+                  <td className="py-4 text-center text-gray-500" colSpan={6}>
+                    Ingresa un término de búsqueda o no hay resultados.
+                  </td>
+                </tr>
+              ) : (
+                resultados.map((cliente) => (
+                  <tr key={cliente.id}>
+                    <td>{cliente.razon_social}</td>
+                    <td>{cliente.rut}</td>
+                    <td>{cliente.direccion || '—'}</td>
+                    <td>{cliente.telefono || '—'}</td>
+                    <td>{cliente.forma_pago || '—'}</td>
+                    <td>
+                      <button
+                        className="btn-sm-orange"
+                        onClick={() => {
+                          setSelectedCliente(cliente)
+                          setView('ver-cliente')
+                        }}
+                      >
+                        Ver Cliente
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   )
 }
 
