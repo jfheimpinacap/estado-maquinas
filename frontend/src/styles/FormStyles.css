@@ -108,3 +108,29 @@
   box-shadow: 0 6px 14px rgba(0,0,0,.35);
 }
 
+/* Botones compactos para usar junto a inputs (no heredan margin-top) */
+.btn-inline {
+  margin-top: 0 !important;          /* ← clave para alinearlos */
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(to right, #f1842d, #ff6600);
+  box-shadow: 0 3px 8px rgba(0,0,0,.25);
+  transition: transform .2s ease, box-shadow .2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  cursor: pointer;
+}
+.btn-inline:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(0,0,0,.35);
+}
+
+/* Variante gris para "Limpiar" */
+.btn-inline--gray {
+  background: linear-gradient(to right, #9aa0a6, #80868b);
+}

@@ -1,4 +1,3 @@
-// src/components/Sidebar.jsx
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -48,7 +47,7 @@ export default function Sidebar({ setView }) {
                 ['crear-cliente', 'Crear Cliente'],
                 ['buscar-cliente', 'Buscar Cliente'],
                 ['listar-clientes', 'Listar Clientes'],
-                [null, 'Editar Cliente'],
+                ['editar-cliente', 'Editar Cliente'],
               ].map(([view, label]) => (
                 <button
                   key={label}

@@ -37,25 +37,26 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
       <section className="form-section">
         <h1>Buscar Cliente</h1>
 
-        <div className="flex items-center gap-2 mb-6">
-          <input
-            type="text"
-            placeholder="Buscar por Razón Social o RUT"
-            className="form-input w-80"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            style={{ background: 'rgb(224, 251, 252)', color: '#000' }}
-          />
+        <div className="flex items-center gap-4 mb-6">
+  <input
+    type="text"
+    placeholder="Buscar por Razón Social o RUT"
+    className="form-input w-96"
+    value={query}
+    onChange={(e) => setQuery(e.target.value)}
+    onKeyDown={handleKeyDown}
+    style={{ background: 'rgb(224, 251, 252)', color: '#000' }}
+  />
 
-          <button type="button" onClick={handleBuscar} className="btn-form px-4 py-2">
-            Buscar
-          </button>
+  <button type="button" onClick={handleBuscar} className="btn-inline">
+    Buscar
+  </button>
 
-          <button type="button" onClick={handleLimpiar} className="btn-form btn-form--gray px-4 py-2">
-            Limpiar
-          </button>
-        </div>
+  <button type="button" onClick={handleLimpiar} className="btn-inline btn-inline--gray">
+    Limpiar
+  </button>
+</div>
+
       </section>
 
       {/* Tarjeta ancha de resultados */}

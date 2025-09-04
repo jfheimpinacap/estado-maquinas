@@ -6,6 +6,7 @@ import MaquinariasList from './components/MaquinariasList'
 import ClientesForm from './components/ClientesForm'
 import ClientesList from './components/ClientesList'
 import BuscarCliente from './components/BuscarCliente'
+import EditarCliente from './components/EditarCliente'
 import VerCliente from './components/VerCliente'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -30,6 +31,7 @@ function App() {
             setView={setView}
           />
         )}
+        {view === 'editar-cliente' && <EditarCliente />}
         {view === 'ver-cliente' && selectedCliente && (
           <VerCliente
             cliente={selectedCliente}
