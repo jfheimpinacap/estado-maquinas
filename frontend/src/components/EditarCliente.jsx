@@ -1,279 +1,265 @@
-import { useState, useMemo } from 'react'
-import { toast } from 'react-toastify'
+// src/components/EditarCliente.jsx
+import { useEffect, useRef, useState, memo } from "react";
+import { toast } from "react-toastify";
 
-const PAGO_OPCIONES = ['Pago a 15 días', 'Pago a 30 días', 'Pago contado']
+const backendURL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+
+/** Campo reutilizable con foco automático cuando se habilita la edición */
+const FieldRow = memo(function FieldRow({
+  label,
+  name,
+  type = "text",
+  as = "input", // 'input' | 'select'
+  value,
+  onChange,
+  canEdit,
+  onEnable,
+  onSave,
+  onCancel,
+}) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (canEdit && ref.current) {
+      // foco al habilitar edición
+      ref.current.focus();
+      // mueve el cursor al final
+      const el = ref.current;
+      if (el.setSelectionRange && typeof value === "string") {
+        const len = value.length;
+        el.setSelectionRange(len, len);
+      }
+    }
+  }, [canEdit, value]);
+
+  return (
+    <div className="field-row">
+      {as === "select" ? (
+        <select
+          ref={ref}
+          className="form-input flex-1"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={!canEdit}
+        >
+          <option value="">Seleccione Forma de Pago</option>
+          <option value="Pago a 15 días">Pago a 15 días</option>
+          <option value="Pago a 30 días">Pago a 30 días</option>
+          <option value="Pago contado">Pago contado</option>
+        </select>
+      ) : (
+        <input
+          ref={ref}
+          type={type}
+          className="form-input flex-1"
+          placeholder={label}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={!canEdit}
+        />
+      )}
+
+      <div className="actions-inline">
+        {!canEdit ? (
+          <button type="button" className="btn-inline btn-inline--gray" onClick={onEnable}>
+            Editar
+          </button>
+        ) : (
+          <>
+            <button type="button" className="btn-inline" onClick={onSave}>
+              Guardar
+            </button>
+            <button type="button" className="btn-inline btn-inline--gray" onClick={onCancel}>
+              Cancelar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export default function EditarCliente() {
-  // BUSCADOR
-  const [query, setQuery] = useState('')
-  const [resultados, setResultados] = useState([])
-  const [cargando, setCargando] = useState(false)
+  const [query, setQuery] = useState("");
+  const [resultados, setResultados] = useState([]);
+  const [selected, setSelected] = useState(null);
 
-  // FORMULARIO/EDICIÓN
-  const [clienteSel, setClienteSel] = useState(null)
-  const [form, setForm] = useState({
-    razon_social: '',
-    rut: '',
-    direccion: '',
-    telefono: '',
-    forma_pago: '',
-  })
-  // qué campos están habilitados para editar
-  const [editando, setEditando] = useState({
+  // borrador editable independiente del seleccionado
+  const [draft, setDraft] = useState(null);
+
+  // control de edición por campo
+  const [editMode, setEditMode] = useState({
     razon_social: false,
     rut: false,
     direccion: false,
     telefono: false,
     forma_pago: false,
-  })
+  });
 
-  const backendURL = useMemo(
-    () => import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000',
-    []
-  )
-
-  // ---------- Buscar ----------
-  const handleBuscar = async () => {
-    setCargando(true)
+  const buscar = async () => {
     try {
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(query)}`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error('Error al buscar clientes')
-      const data = await res.json()
-      setResultados(data)
-      if (data.length === 0) toast.info('Sin resultados')
-    } catch (e) {
-      console.error(e)
-      toast.error('No se pudo buscar clientes')
-    } finally {
-      setCargando(false)
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(query.trim())}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setResultados(data);
+    } catch {
+      setResultados([]);
     }
-  }
+  };
 
-  const handleLimpiar = () => {
-    setQuery('')
-    setResultados([])
-    setClienteSel(null)
-  }
+  const limpiar = () => {
+    setQuery("");
+    setResultados([]);
+  };
 
-  const seleccionarCliente = (c) => {
-    setClienteSel(c)
-    setForm({
-      razon_social: c.razon_social || '',
-      rut: c.rut || '',
-      direccion: c.direccion || '',
-      telefono: c.telefono || '',
-      forma_pago: c.forma_pago || '',
-    })
-    setEditando({
+  const cargarCliente = (cli) => {
+    setSelected(cli);
+    setDraft({ ...cli });
+    setEditMode({
       razon_social: false,
       rut: false,
       direccion: false,
       telefono: false,
       forma_pago: false,
-    })
-  }
+    });
+  };
 
-  // ---------- Validación simple ----------
-  const validarCampo = (name, value) => {
-    switch (name) {
-      case 'razon_social':
-        return value.trim().length >= 2
-      case 'rut':
-        return value.trim().length >= 6 // validación básica
-      case 'telefono':
-        return /^[0-9]{8,15}$/.test(value.replace(/\D/g, ''))
-      case 'forma_pago':
-        return PAGO_OPCIONES.includes(value)
-      case 'direccion':
-        return true
-      default:
-        return true
-    }
-  }
+  const enableField = (name) => {
+    setEditMode((m) => ({ ...m, [name]: true }));
+  };
 
-  // ---------- Guardar por campo ----------
-  const guardarCampo = async (name) => {
-    if (!clienteSel) return
-    const valor = form[name]
+  const cancelField = (name) => {
+    setDraft((d) => ({ ...d, [name]: selected?.[name] ?? "" }));
+    setEditMode((m) => ({ ...m, [name]: false }));
+  };
 
-    if (!validarCampo(name, valor)) {
-      toast.error('Dato no válido para el campo seleccionado')
-      return
-    }
-
+  const saveField = async (name) => {
+    if (!selected) return;
     try {
-      const res = await fetch(`${backendURL}/clientes/${clienteSel.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [name]: valor }),
-      })
-      if (!res.ok) throw new Error('PATCH falló')
-
-      const actualizado = await res.json()
-      // refleja cambios
-      setClienteSel(actualizado)
-      setForm((prev) => ({ ...prev, [name]: actualizado[name] || '' }))
-      setEditando((prev) => ({ ...prev, [name]: false }))
-      toast.success('Campo actualizado')
-    } catch (e) {
-      console.error(e)
-      toast.error('No se pudo guardar el cambio')
+      const res = await fetch(`${backendURL}/clientes/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [name]: draft[name] }),
+      });
+      if (!res.ok) throw new Error("No se pudo actualizar");
+      const updated = await res.json();
+      setSelected(updated);
+      setDraft((d) => ({ ...d, [name]: updated[name] }));
+      setEditMode((m) => ({ ...m, [name]: false }));
+      toast.success("Cambios guardados");
+    } catch {
+      toast.error("Error al guardar cambios");
     }
-  }
-
-  const cancelarCampo = (name) => {
-    // vuelve al valor del cliente seleccionado
-    if (!clienteSel) return
-    setForm((prev) => ({ ...prev, [name]: clienteSel[name] || '' }))
-    setEditando((prev) => ({ ...prev, [name]: false }))
-  }
-
-  // ---------- Render helpers ----------
-  const CampoTexto = ({ name, label, type = 'text', placeholder = '' }) => (
-    <div className="flex items-center gap-3">
-      <div className="flex-1">
-        <label className="block mb-1 text-sm font-medium text-gray-700">{label}</label>
-        <input
-          type={type}
-          value={form[name]}
-          placeholder={placeholder}
-          className="form-input w-full"
-          disabled={!editando[name]}
-          onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}
-          style={{ background: 'rgb(224, 251, 252)', color: '#000' }}
-        />
-      </div>
-
-      {!editando[name] ? (
-        <button
-          type="button"
-          className="btn-inline btn-inline--gray"
-          onClick={() => setEditando((p) => ({ ...p, [name]: true }))}
-        >
-          Editar
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 pt-6">
-          <button type="button" className="btn-inline" onClick={() => guardarCampo(name)}>
-            Guardar
-          </button>
-          <button type="button" className="btn-inline btn-inline--gray" onClick={() => cancelarCampo(name)}>
-            Cancelar
-          </button>
-        </div>
-      )}
-    </div>
-  )
-
-  const CampoSelect = ({ name, label, opciones }) => (
-    <div className="flex items-center gap-3">
-      <div className="flex-1">
-        <label className="block mb-1 text-sm font-medium text-gray-700">{label}</label>
-        <select
-          value={form[name]}
-          className="form-input w-full"
-          disabled={!editando[name]}
-          onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}
-          style={{ background: 'rgb(224, 251, 252)', color: '#000' }}
-        >
-          <option value="">Seleccione Forma de Pago</option>
-          {opciones.map((op) => (
-            <option key={op} value={op}>{op}</option>
-          ))}
-        </select>
-      </div>
-
-      {!editando[name] ? (
-        <button
-          type="button"
-          className="btn-inline btn-inline--gray"
-          onClick={() => setEditando((p) => ({ ...p, [name]: true }))}
-        >
-          Editar
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 pt-6">
-          <button type="button" className="btn-inline" onClick={() => guardarCampo(name)}>
-            Guardar
-          </button>
-          <button type="button" className="btn-inline btn-inline--gray" onClick={() => cancelarCampo(name)}>
-            Cancelar
-          </button>
-        </div>
-      )}
-    </div>
-  )
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Buscador angosto */}
-      <section className="form-section">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Columna izquierda: buscador compacto */}
+      <section className="form-section form-section--compact">
         <h1>Editar Cliente</h1>
 
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-2 mb-4">
           <input
-            type="text"
+            className="form-input w-64"
             placeholder="Buscar por Razón Social o RUT"
-            className="form-input w-96"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
-            style={{ background: 'rgb(224, 251, 252)', color: '#000' }}
+            onKeyDown={(e) => e.key === "Enter" && buscar()}
+            style={{ background: "rgb(224, 251, 252)", color: "#000" }}
           />
-          <button type="button" onClick={handleBuscar} className="btn-inline">
-            {cargando ? 'Buscando…' : 'Buscar'}
+          <button type="button" className="btn-inline" onClick={buscar}>
+            Buscar
           </button>
-          <button type="button" onClick={handleLimpiar} className="btn-inline btn-inline--gray">
+          <button type="button" className="btn-inline btn-inline--gray" onClick={limpiar}>
             Limpiar
           </button>
         </div>
 
-        {/* Resultados básicos para seleccionar */}
-        {resultados.length > 0 && (
-          <div className="panel-section" style={{ marginLeft: 0, marginTop: '1rem' }}>
-            <div className="table-wrap">
-              <table className="w-full text-left">
-                <thead>
-                  <tr>
-                    <th>Razón Social</th>
-                    <th>RUT</th>
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultados.map((c) => (
-                    <tr key={c.id}>
-                      <td>{c.razon_social}</td>
-                      <td>{c.rut}</td>
-                      <td>
-                        <button className="btn-sm-orange" onClick={() => seleccionarCliente(c)}>
-                          Seleccionar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        <div className="panel-section panel-section--compact">
+          {resultados.length === 0 ? (
+            <p className="text-gray-600 text-sm">Sin resultados.</p>
+          ) : (
+            <ul className="divide-y">
+              {resultados.map((c) => (
+                <li key={c.id} className="py-2 flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">{c.razon_social}</div>
+                    <div className="text-xs text-gray-500">{c.rut}</div>
+                  </div>
+                  <button className="btn-inline" onClick={() => cargarCliente(c)}>
+                    Editar →
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* Columna derecha: formulario compacto */}
+      <section className="form-section form-section--compact">
+        <h1>Datos del Cliente</h1>
+
+        {!selected ? (
+          <p className="text-gray-600 text-sm">Busca un cliente y selecciónalo para editar.</p>
+        ) : (
+          <div className="space-y-3">
+            <FieldRow
+              label="Razón Social"
+              name="razon_social"
+              value={draft?.razon_social}
+              onChange={(v) => setDraft((d) => ({ ...d, razon_social: v }))}
+              canEdit={editMode.razon_social}
+              onEnable={() => enableField("razon_social")}
+              onSave={() => saveField("razon_social")}
+              onCancel={() => cancelField("razon_social")}
+            />
+            <FieldRow
+              label="RUT"
+              name="rut"
+              value={draft?.rut}
+              onChange={(v) => setDraft((d) => ({ ...d, rut: v }))}
+              canEdit={editMode.rut}
+              onEnable={() => enableField("rut")}
+              onSave={() => saveField("rut")}
+              onCancel={() => cancelField("rut")}
+            />
+            <FieldRow
+              label="Dirección"
+              name="direccion"
+              value={draft?.direccion}
+              onChange={(v) => setDraft((d) => ({ ...d, direccion: v }))}
+              canEdit={editMode.direccion}
+              onEnable={() => enableField("direccion")}
+              onSave={() => saveField("direccion")}
+              onCancel={() => cancelField("direccion")}
+            />
+            <FieldRow
+              label="Teléfono"
+              name="telefono"
+              value={draft?.telefono}
+              onChange={(v) => setDraft((d) => ({ ...d, telefono: v }))}
+              canEdit={editMode.telefono}
+              onEnable={() => enableField("telefono")}
+              onSave={() => saveField("telefono")}
+              onCancel={() => cancelField("telefono")}
+            />
+            <FieldRow
+              label="Forma de Pago"
+              name="forma_pago"
+              as="select"
+              value={draft?.forma_pago}
+              onChange={(v) => setDraft((d) => ({ ...d, forma_pago: v }))}
+              canEdit={editMode.forma_pago}
+              onEnable={() => enableField("forma_pago")}
+              onSave={() => saveField("forma_pago")}
+              onCancel={() => cancelField("forma_pago")}
+            />
           </div>
         )}
       </section>
-
-      {/* Formulario bloqueado + edición por campo */}
-      {clienteSel && (
-        <section className="form-section" style={{ marginTop: 0 }}>
-          <h2>Datos del Cliente</h2>
-
-          <div className="space-y-5">
-            <CampoTexto name="razon_social" label="Razón Social" />
-            <CampoTexto name="rut" label="RUT" />
-            <CampoTexto name="direccion" label="Dirección" />
-            <CampoTexto name="telefono" label="Teléfono" />
-            <CampoSelect name="forma_pago" label="Forma de Pago" opciones={PAGO_OPCIONES} />
-          </div>
-        </section>
-      )}
     </div>
-  )
+  );
 }
+
+

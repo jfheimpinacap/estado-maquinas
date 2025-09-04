@@ -1,66 +1,64 @@
-import { useState } from 'react'
+// src/components/BuscarCliente.jsx
+import { useState } from "react";
 
 export default function BuscarCliente({ setView, setSelectedCliente }) {
-  const [query, setQuery] = useState('')
-  const [resultados, setResultados] = useState([])
+  const [query, setQuery] = useState("");
+  const [resultados, setResultados] = useState([]);
 
-  const backendURL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+  const backendURL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
   const handleBuscar = async () => {
     try {
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(query)}`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error('Error al buscar clientes')
-      const data = await res.json()
-      setResultados(data)
-    } catch (err) {
-      console.error('❌ Error en la búsqueda:', err)
-      setResultados([])
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Error al buscar clientes");
+      const data = await res.json();
+      setResultados(data);
+    } catch (error) {
+      console.error("❌ Error en la búsqueda:", error);
+      setResultados([]);
     }
-  }
+  };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleBuscar()
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleBuscar();
     }
-  }
+  };
 
   const handleLimpiar = () => {
-    setQuery('')
-    setResultados([])
-  }
+    setQuery("");
+    setResultados([]);
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Tarjeta angosta de búsqueda */}
-      <section className="form-section">
+      <section className="form-section form-section--compact">
         <h1>Buscar Cliente</h1>
 
-        <div className="flex items-center gap-4 mb-6">
-  <input
-    type="text"
-    placeholder="Buscar por Razón Social o RUT"
-    className="form-input w-96"
-    value={query}
-    onChange={(e) => setQuery(e.target.value)}
-    onKeyDown={handleKeyDown}
-    style={{ background: 'rgb(224, 251, 252)', color: '#000' }}
-  />
-
-  <button type="button" onClick={handleBuscar} className="btn-inline">
-    Buscar
-  </button>
-
-  <button type="button" onClick={handleLimpiar} className="btn-inline btn-inline--gray">
-    Limpiar
-  </button>
-</div>
-
+        <div className="flex items-center gap-2 mb-4">
+          <input
+            type="text"
+            placeholder="Buscar por Razón Social o RUT"
+            className="form-input w-64"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={{ background: "rgb(224, 251, 252)", color: "#000" }}
+          />
+          <button type="button" onClick={handleBuscar} className="btn-inline">
+            Buscar
+          </button>
+          <button type="button" onClick={handleLimpiar} className="btn-inline btn-inline--gray">
+            Limpiar
+          </button>
+        </div>
       </section>
 
       {/* Tarjeta ancha de resultados */}
-      <section className="panel-section">
+      <section className="panel-section panel-section--compact">
         <div className="table-wrap">
           <table className="w-full text-left">
             <thead>
@@ -85,15 +83,15 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                   <tr key={cliente.id}>
                     <td>{cliente.razon_social}</td>
                     <td>{cliente.rut}</td>
-                    <td>{cliente.direccion || '—'}</td>
-                    <td>{cliente.telefono || '—'}</td>
-                    <td>{cliente.forma_pago || '—'}</td>
+                    <td>{cliente.direccion || "—"}</td>
+                    <td>{cliente.telefono || "—"}</td>
+                    <td>{cliente.forma_pago || "—"}</td>
                     <td>
                       <button
                         className="btn-sm-orange"
                         onClick={() => {
-                          setSelectedCliente(cliente)
-                          setView('ver-cliente')
+                          setSelectedCliente(cliente);
+                          setView("ver-cliente");
                         }}
                       >
                         Ver Cliente
@@ -107,7 +105,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
         </div>
       </section>
     </div>
-  )
+  );
 }
 
 
