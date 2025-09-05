@@ -7,6 +7,7 @@ import ClientesForm from './components/ClientesForm'
 import ClientesList from './components/ClientesList'
 import BuscarCliente from './components/BuscarCliente'
 import EditarCliente from './components/EditarCliente'
+import MovimientosCliente from './components/MovimientosCliente'
 import VerCliente from './components/VerCliente'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -23,20 +24,28 @@ function App() {
       <main className="flex-1 p-8 bg-white min-h-screen text-black">
         {view === 'crearMaquinaria' && <MaquinariaForm />}
         {view === 'listaMaquinarias' && <MaquinariasList />}
+
         {view === 'crear-cliente' && <ClientesForm />}
         {view === 'listar-clientes' && <ClientesList />}
+
         {view === 'buscar-cliente' && (
           <BuscarCliente
-            setSelectedCliente={setSelectedCliente} 
+            setSelectedCliente={setSelectedCliente}
             setView={setView}
           />
         )}
-        {view === 'editar-cliente' && <EditarCliente />}
+
         {view === 'ver-cliente' && selectedCliente && (
           <VerCliente
             cliente={selectedCliente}
             setView={setView}
           />
+        )}
+
+        {view === 'editar-cliente' && <EditarCliente />}
+
+        {view === 'ver-movimientos' && (
+          <MovimientosCliente cliente={selectedCliente} />
         )}
       </main>
 

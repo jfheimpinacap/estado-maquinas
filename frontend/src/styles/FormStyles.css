@@ -204,3 +204,16 @@ select.form-input {
   background-size: 1rem;
   padding-right: 2.5rem; /* espacio para la flecha */
 }
+
+/* Botón naranja un poquito más bajo (para listas compactas) */
+.btn-sm-orange--short {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+/* Panel ancho (ocupa todo el contenido) para evitar scroll horizontal */
+.panel-section--full {
+  max-width: none;                 /* que no se limite a 900px */
+  margin: 0 1.5rem 1.25rem 1.5rem; /* margen simétrico izq/der */
+  padding: 1.25rem 1.5rem;
+}

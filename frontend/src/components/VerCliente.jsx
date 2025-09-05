@@ -1,31 +1,34 @@
+// src/components/VerCliente.jsx
 export default function VerCliente({ cliente, setView }) {
-  if (!cliente) return <p>No se ha seleccionado cliente.</p>
+  if (!cliente) return <p>No se ha seleccionado cliente.</p>;
 
   return (
-    <section className="max-w-3xl mx-auto bg-white p-10 rounded-xl shadow-lg mt-8">
-      <h1 className="text-2xl font-bold mb-4 text-gray-800">Datos del Cliente</h1>
+    <section className="form-section form-section--compact">
+      <h1>Datos del Cliente</h1>
 
-      <div className="mb-4">
-        <p><strong>Nombre:</strong> {cliente.razon_social}</p>
-        <p><strong>RUT:</strong> {cliente.rut}</p>
-        {/* Agrega más campos según tu modelo */}
+      <div className="space-y-2">
+        <div><strong>Razón Social:</strong> {cliente.razon_social || "—"}</div>
+        <div><strong>RUT:</strong> {cliente.rut || "—"}</div>
+        <div><strong>Dirección:</strong> {cliente.direccion || "—"}</div>
+        <div><strong>Teléfono:</strong> {cliente.telefono || "—"}</div>
+        <div><strong>Forma de Pago:</strong> {cliente.forma_pago || "—"}</div>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex gap-3 mt-4">
         <button
-          onClick={() => alert('Abrir formulario para editar')}
-          className="bg-[#f1842d] text-white px-4 py-2 rounded hover:bg-[#e6761c] transition"
+          className="btn-form btn-mini"
+          onClick={() => setView("editar-cliente")}
         >
-          Editar Datos
+          Editar datos
         </button>
-
         <button
-          onClick={() => alert('Ver movimientos del cliente')}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+          className="btn-form btn-mini btn-form--gray"
+          onClick={() => setView("ver-movimientos")}
         >
-          Ver Movimientos
+          Ver movimientos
         </button>
       </div>
     </section>
-  )
+  );
 }
+

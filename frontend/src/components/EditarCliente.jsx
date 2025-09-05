@@ -1,90 +1,15 @@
 // src/components/EditarCliente.jsx
-import { useEffect, useRef, useState, memo } from "react";
+import { useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 const backendURL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
-
-/** Campo reutilizable con foco automático cuando se habilita la edición */
-const FieldRow = memo(function FieldRow({
-  label,
-  name,
-  type = "text",
-  as = "input", // 'input' | 'select'
-  value,
-  onChange,
-  canEdit,
-  onEnable,
-  onSave,
-  onCancel,
-}) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (canEdit && ref.current) {
-      // foco al habilitar edición
-      ref.current.focus();
-      // mueve el cursor al final
-      const el = ref.current;
-      if (el.setSelectionRange && typeof value === "string") {
-        const len = value.length;
-        el.setSelectionRange(len, len);
-      }
-    }
-  }, [canEdit, value]);
-
-  return (
-    <div className="field-row">
-      {as === "select" ? (
-        <select
-          ref={ref}
-          className="form-input flex-1"
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={!canEdit}
-        >
-          <option value="">Seleccione Forma de Pago</option>
-          <option value="Pago a 15 días">Pago a 15 días</option>
-          <option value="Pago a 30 días">Pago a 30 días</option>
-          <option value="Pago contado">Pago contado</option>
-        </select>
-      ) : (
-        <input
-          ref={ref}
-          type={type}
-          className="form-input flex-1"
-          placeholder={label}
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={!canEdit}
-        />
-      )}
-
-      <div className="actions-inline">
-        {!canEdit ? (
-          <button type="button" className="btn-inline btn-inline--gray" onClick={onEnable}>
-            Editar
-          </button>
-        ) : (
-          <>
-            <button type="button" className="btn-inline" onClick={onSave}>
-              Guardar
-            </button>
-            <button type="button" className="btn-inline btn-inline--gray" onClick={onCancel}>
-              Cancelar
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-});
 
 export default function EditarCliente() {
   const [query, setQuery] = useState("");
   const [resultados, setResultados] = useState([]);
   const [selected, setSelected] = useState(null);
 
-  // borrador editable independiente del seleccionado
+  // borrador editable sin tocar el seleccionado hasta guardar
   const [draft, setDraft] = useState(null);
 
   // control de edición por campo
@@ -96,13 +21,21 @@ export default function EditarCliente() {
     forma_pago: false,
   });
 
+  // refs
+  const refs = useRef({});
+  const formRef = useRef(null);
+
   const buscar = async () => {
     try {
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(query.trim())}`;
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(
+        query.trim()
+      )}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error("Error al buscar");
       const data = await res.json();
       setResultados(data);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setResultados([]);
     }
   };
@@ -122,10 +55,15 @@ export default function EditarCliente() {
       telefono: false,
       forma_pago: false,
     });
+    // desplazar el foco visual al formulario de la derecha
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   const enableField = (name) => {
     setEditMode((m) => ({ ...m, [name]: true }));
+    setTimeout(() => refs.current[name]?.focus(), 0);
   };
 
   const cancelField = (name) => {
@@ -147,14 +85,73 @@ export default function EditarCliente() {
       setDraft((d) => ({ ...d, [name]: updated[name] }));
       setEditMode((m) => ({ ...m, [name]: false }));
       toast.success("Cambios guardados");
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast.error("Error al guardar cambios");
     }
   };
 
+  const FieldRow = ({ name, placeholder, type = "text", as = "input" }) => (
+    <div className="field-row">
+      {as === "select" ? (
+        <select
+          ref={(el) => (refs.current[name] = el)}
+          className="form-input flex-1"
+          value={draft?.[name] ?? ""}
+          onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+          disabled={!editMode[name]}
+        >
+          <option value="">Seleccione Forma de Pago</option>
+          <option value="Pago a 15 días">Pago a 15 días</option>
+          <option value="Pago a 30 días">Pago a 30 días</option>
+          <option value="Pago contado">Pago contado</option>
+        </select>
+      ) : (
+        <input
+          ref={(el) => (refs.current[name] = el)}
+          type={type}
+          className="form-input flex-1"
+          placeholder={placeholder}
+          value={draft?.[name] ?? ""}
+          onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+          readOnly={!editMode[name]}
+        />
+      )}
+
+      <div className="actions-inline">
+        {!editMode[name] ? (
+          <button
+            type="button"
+            className="btn-form btn-mini btn-form--gray"
+            onClick={() => enableField(name)}
+          >
+            Editar
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn-form btn-mini"
+              onClick={() => saveField(name)}
+            >
+              Guardar
+            </button>
+            <button
+              type="button"
+              className="btn-form btn-mini btn-form--gray"
+              onClick={() => cancelField(name)}
+            >
+              Cancelar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Columna izquierda: buscador compacto */}
+      {/* Columna izquierda: buscador (cuadro independiente) */}
       <section className="form-section form-section--compact">
         <h1>Editar Cliente</h1>
 
@@ -167,99 +164,85 @@ export default function EditarCliente() {
             onKeyDown={(e) => e.key === "Enter" && buscar()}
             style={{ background: "rgb(224, 251, 252)", color: "#000" }}
           />
-          <button type="button" className="btn-inline" onClick={buscar}>
+          <button type="button" className="btn-form btn-mini" onClick={buscar}>
             Buscar
           </button>
-          <button type="button" className="btn-inline btn-inline--gray" onClick={limpiar}>
+          <button
+            type="button"
+            className="btn-form btn-mini btn-form--gray"
+            onClick={limpiar}
+          >
             Limpiar
           </button>
         </div>
-
-        <div className="panel-section panel-section--compact">
-          {resultados.length === 0 ? (
-            <p className="text-gray-600 text-sm">Sin resultados.</p>
-          ) : (
-            <ul className="divide-y">
-              {resultados.map((c) => (
-                <li key={c.id} className="py-2 flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold">{c.razon_social}</div>
-                    <div className="text-xs text-gray-500">{c.rut}</div>
-                  </div>
-                  <button className="btn-inline" onClick={() => cargarCliente(c)}>
-                    Editar →
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </section>
 
-      {/* Columna derecha: formulario compacto */}
-      <section className="form-section form-section--compact">
+      {/* Columna derecha: formulario (independiente) */}
+      <section ref={formRef} className="form-section form-section--compact">
         <h1>Datos del Cliente</h1>
 
         {!selected ? (
-          <p className="text-gray-600 text-sm">Busca un cliente y selecciónalo para editar.</p>
+          <p className="text-gray-600 text-sm">
+            Busca un cliente y selecciónalo para editar.
+          </p>
         ) : (
           <div className="space-y-3">
-            <FieldRow
-              label="Razón Social"
-              name="razon_social"
-              value={draft?.razon_social}
-              onChange={(v) => setDraft((d) => ({ ...d, razon_social: v }))}
-              canEdit={editMode.razon_social}
-              onEnable={() => enableField("razon_social")}
-              onSave={() => saveField("razon_social")}
-              onCancel={() => cancelField("razon_social")}
-            />
-            <FieldRow
-              label="RUT"
-              name="rut"
-              value={draft?.rut}
-              onChange={(v) => setDraft((d) => ({ ...d, rut: v }))}
-              canEdit={editMode.rut}
-              onEnable={() => enableField("rut")}
-              onSave={() => saveField("rut")}
-              onCancel={() => cancelField("rut")}
-            />
-            <FieldRow
-              label="Dirección"
-              name="direccion"
-              value={draft?.direccion}
-              onChange={(v) => setDraft((d) => ({ ...d, direccion: v }))}
-              canEdit={editMode.direccion}
-              onEnable={() => enableField("direccion")}
-              onSave={() => saveField("direccion")}
-              onCancel={() => cancelField("direccion")}
-            />
-            <FieldRow
-              label="Teléfono"
-              name="telefono"
-              value={draft?.telefono}
-              onChange={(v) => setDraft((d) => ({ ...d, telefono: v }))}
-              canEdit={editMode.telefono}
-              onEnable={() => enableField("telefono")}
-              onSave={() => saveField("telefono")}
-              onCancel={() => cancelField("telefono")}
-            />
-            <FieldRow
-              label="Forma de Pago"
-              name="forma_pago"
-              as="select"
-              value={draft?.forma_pago}
-              onChange={(v) => setDraft((d) => ({ ...d, forma_pago: v }))}
-              canEdit={editMode.forma_pago}
-              onEnable={() => enableField("forma_pago")}
-              onSave={() => saveField("forma_pago")}
-              onCancel={() => cancelField("forma_pago")}
-            />
+            <FieldRow name="razon_social" placeholder="Razón Social" />
+            <FieldRow name="rut" placeholder="RUT" />
+            <FieldRow name="direccion" placeholder="Dirección" />
+            <FieldRow name="telefono" placeholder="Teléfono" />
+            <FieldRow name="forma_pago" as="select" />
           </div>
         )}
+      </section>
+
+      {/* Fila inferior: tabla de resultados a lo ancho (como en BuscarCliente) */}
+      <section className="panel-section panel-section--full lg:col-span-2">
+        <div className="table-wrap">
+          <table className="w-full text-left">
+            <thead>
+              <tr>
+                <th>Razón Social</th>
+                <th>RUT</th>
+                <th>Dirección</th>
+                <th>Teléfono</th>
+                <th>Forma de Pago</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resultados.length === 0 ? (
+                <tr>
+                  <td className="py-4 text-center text-gray-500" colSpan={6}>
+                    Ingresa un término de búsqueda o no hay resultados.
+                  </td>
+                </tr>
+              ) : (
+                resultados.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.razon_social}</td>
+                    <td>{c.rut}</td>
+                    <td>{c.direccion || "—"}</td>
+                    <td>{c.telefono || "—"}</td>
+                    <td>{c.forma_pago || "—"}</td>
+                    <td>
+                      <button
+                        className="btn-sm-orange btn-sm-orange--short"
+                        onClick={() => cargarCliente(c)}
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
 }
+
 
 
