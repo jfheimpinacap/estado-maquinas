@@ -27,23 +27,18 @@ def which_venv():
 def has_command(cmd):
     return shutil.which(cmd) is not None
 
-def run_ok(cmd, cwd=None, env=None):
-    """Ejecuta y devuelve True si sale 0; no lanza excepción."""
-    try:
-        subprocess.run(cmd, cwd=cwd, env=env, check=True,
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-def run(cmd, cwd=None, env=None):
-    subprocess.run(cmd, cwd=cwd, env=env, check=True)
+def run(cmd, cwd=None, env=None, check=True, capture=False):
+    return subprocess.run(
+        cmd, cwd=cwd, env=env, check=check,
+        stdout=(subprocess.PIPE if capture else None),
+        stderr=(subprocess.PIPE if capture else None),
+        text=True
+    )
 
 def ensure_sql_server():
     if os.name != "nt":
         return
     try:
-        # No bloquea si falla o ya está iniciado.
         subprocess.run(
             ["powershell", "-NoProfile", "-Command",
              "Start-Service -Name 'MSSQL$SQLEXPRESS'"],
@@ -62,21 +57,19 @@ def ensure_backend_venv_and_deps():
     py = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     pip = [str(py), "-m", "pip"]
 
-    # ¿Ya están los paquetes? probamos imports en el venv
+    # ¿Faltan paquetes?
     test_code = (
         "import importlib as i; "
         "mods=['django','rest_framework','corsheaders','mssql','pyodbc','dotenv'];"
         "missing=[m for m in mods if not i.util.find_spec(m)]; "
         "print(','.join(missing))"
     )
-    proc = subprocess.run([str(py), "-c", test_code],
-                          capture_output=True, text=True)
+    proc = run([str(py), "-c", test_code], capture=True, check=False)
     missing = [m for m in proc.stdout.strip().split(",") if m]
 
     if missing:
         print("🔧 Actualizando pip...")
         run(pip + ["install", "-U", "pip", "wheel"])
-
         req = BACKEND / "requirements.txt"
         if req.exists():
             print("📦 Instalando dependencias (requirements.txt)...")
@@ -89,9 +82,10 @@ def ensure_backend_venv_and_deps():
                        "django-cors-headers",
                        "mssql-django",
                        "pyodbc",
-                       "python-dotenv"])
+                       "python-dotenv",
+                       "djangorestframework-simplejwt"])
 
-    return py  # python del venv
+    return py
 
 def ensure_frontend_deps():
     if not (FRONTEND / "package.json").exists():
@@ -105,18 +99,21 @@ def ensure_frontend_deps():
         run(["npm", "install"], cwd=str(FRONTEND))
     return True
 
+def run_manage(py_exe, *args, check=True):
+    """Ejecuta manage.py con los args indicados en el directorio backend."""
+    cmd = [str(py_exe), "manage.py", *args]
+    return run(cmd, cwd=str(BACKEND), check=check)
+
 def open_new_console_windows(title, command, cwd=None):
     """
-    Abre nueva ventana usando PowerShell Start-Process. Evita los problemas de `start`.
-    command puede ser una cadena o lista.
+    Abre nueva ventana usando PowerShell Start-Process (Windows).
+    En Unix, lanza en el mismo terminal.
     """
     if os.name != "nt":
-        # UNIX: simplemente deja corriendo en el mismo proceso (ajústalo a tu terminal si quieres ventanas nuevas)
         return subprocess.Popen(command, cwd=cwd)
 
     if isinstance(command, (list, tuple)):
-        # Construye una línea segura para cmd /K
-        cmdline = " ".join(f'"{c}"' if " " in c or "\\" in c or "/" in c else c for c in command)
+        cmdline = " ".join(f'"{c}"' if (" " in c or "\\" in c or "/" in c) else c for c in command)
     else:
         cmdline = command
 
@@ -130,7 +127,6 @@ def open_new_console_windows(title, command, cwd=None):
         "-Verb", "Open",
         "-Wait:$false"
     ]
-    # No queremos bloquear; si falla, mostramos mensaje pero seguimos
     try:
         subprocess.Popen(ps_cmd)
     except Exception as e:
@@ -140,17 +136,28 @@ def main():
     os.chdir(ROOT)
     print("🚀 Preparando proyecto...")
 
-    # 1) SQL Server Express (no bloqueante)
+    # 1) SQL Server (opcional, no bloqueante)
     print("🗄️  Intentando iniciar SQL Server Express (MSSQL$SQLEXPRESS)...")
     ensure_sql_server()
 
-    # 2) Backend
+    # 2) Backend: venv + deps
     py = ensure_backend_venv_and_deps()
 
-    # 3) Frontend
+    # 3) Migraciones (makemigrations api + migrate)
+    try:
+        print("🧱 Django: makemigrations api...")
+        run_manage(py, "makemigrations", "api", check=False)  # no romper si no hay cambios
+        print("🧱 Django: migrate...")
+        run_manage(py, "migrate")
+    except subprocess.CalledProcessError as e:
+        print("❌ Error al aplicar migraciones.")
+        print(e)
+        # seguimos, puede que el server arranque igual si ya estaban aplicadas
+
+    # 4) Frontend deps
     ok_fe = ensure_frontend_deps()
 
-    # 4) Abrir consolas
+    # 5) Levantar servicios en ventanas separadas
     print("▶️  Iniciando Django (puerto 8000) en nueva ventana...")
     open_new_console_windows(
         "Django",
@@ -165,7 +172,6 @@ def main():
             ["npm", "run", "dev"],
             cwd=str(FRONTEND)
         )
-        # Abre navegador al frontend
         try:
             webbrowser.open("http://localhost:5173", new=2)
         except Exception:
@@ -185,3 +191,4 @@ if __name__ == "__main__":
         sys.exit(e.returncode)
     except KeyboardInterrupt:
         print("\n⏹️  Interrumpido por el usuario.")
+

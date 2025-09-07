@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 const C = {
   fondoColumna: 'rgb(41, 50, 65)',
@@ -11,27 +12,37 @@ const C = {
 
 export default function Sidebar({ setView }) {
   const [openMenu, setOpenMenu] = useState(null)
+  const { auth, logout } = useAuth() || { auth: null, logout: () => {} }
+  const isAdmin = !!(auth?.user?.is_staff || auth?.user?.is_superuser || auth?.is_staff)
+
   const toggleMenu = (menu) => setOpenMenu(openMenu === menu ? null : menu)
 
   const mainButtonClass =
-    'w-full flex justify-between items-center text-left py-3 px-4 rounded-md shadow transition bg-[rgb(238,108,77)] hover:bg-[rgb(255,102,0)]'
+    'w-full flex justify-between items-center text-left py-3 px-4 rounded-none shadow transition'
   const submenuButtonClass =
-    'w-full text-left py-2 px-5 rounded-md transition bg-[rgb(61,90,128)] hover:bg-[rgb(152,193,217)]'
+    'w-full text-left py-2 px-5 rounded-none transition'
 
   return (
     <aside
-      className="sidebar min-h-screen p-5 flex flex-col w-80"
-      style={{ backgroundColor: C.fondoColumna }}
+      className="min-h-screen p-5 flex flex-col w-80"
+      // Forzamos color blanco a todo el árbol del sidebar (evita que el body lo sobrescriba)
+      style={{ backgroundColor: C.fondoColumna, color: '#fff' }}
     >
-      <h1 className="text-lg font-semibold mb-5 tracking-wide">
+      <h1 className="text-lg font-semibold mb-4 tracking-wide" style={{ color: '#fff' }}>
         Panel de Control
       </h1>
 
       {/* CLIENTES */}
-      <div className="mb-3">
-        <button onClick={() => toggleMenu('clientes')} className={mainButtonClass}>
-          <span className="text-base">Clientes</span>
-          {openMenu === 'clientes' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+      <div className="mb-2">
+        <button
+          onClick={() => toggleMenu('clientes')}
+          className={mainButtonClass}
+          style={{ backgroundColor: C.botonPrincipal, color: '#fff' }}
+        >
+          <span>Clientes</span>
+          {openMenu === 'clientes'
+            ? <ChevronUp size={18} color="#fff" />
+            : <ChevronDown size={18} color="#fff" />}
         </button>
 
         <AnimatePresence>
@@ -40,7 +51,7 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col gap-1 mt-2"
+              className="flex flex-col mt-2 overflow-hidden rounded-none"
               style={{ backgroundColor: C.submenu }}
             >
               {[
@@ -51,9 +62,9 @@ export default function Sidebar({ setView }) {
               ].map(([view, label]) => (
                 <button
                   key={label}
-                  onClick={() => (view ? setView(view) : alert('Próximamente'))}
+                  onClick={() => setView(view)}
                   className={submenuButtonClass}
-                  style={{ backgroundColor: C.submenu }}
+                  style={{ backgroundColor: C.submenu, color: '#fff' }}
                   onMouseOver={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
                   onMouseOut={(e) => (e.currentTarget.style.backgroundColor = C.submenu)}
                 >
@@ -66,10 +77,16 @@ export default function Sidebar({ setView }) {
       </div>
 
       {/* MAQUINARIAS */}
-      <div className="mb-3">
-        <button onClick={() => toggleMenu('maquinarias')} className={mainButtonClass}>
-          <span className="text-base">Maquinarias</span>
-          {openMenu === 'maquinarias' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+      <div className="mb-2">
+        <button
+          onClick={() => toggleMenu('maquinarias')}
+          className={mainButtonClass}
+          style={{ backgroundColor: C.botonPrincipal, color: '#fff' }}
+        >
+          <span>Maquinarias</span>
+          {openMenu === 'maquinarias'
+            ? <ChevronUp size={18} color="#fff" />
+            : <ChevronDown size={18} color="#fff" />}
         </button>
 
         <AnimatePresence>
@@ -78,7 +95,7 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col gap-1 mt-2"
+              className="flex flex-col mt-2 overflow-hidden"
               style={{ backgroundColor: C.submenu }}
             >
               {[
@@ -91,7 +108,7 @@ export default function Sidebar({ setView }) {
                   key={label}
                   onClick={() => (view ? setView(view) : alert('Próximamente'))}
                   className={submenuButtonClass}
-                  style={{ backgroundColor: C.submenu }}
+                  style={{ backgroundColor: C.submenu, color: '#fff' }}
                   onMouseOver={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
                   onMouseOut={(e) => (e.currentTarget.style.backgroundColor = C.submenu)}
                 >
@@ -104,10 +121,16 @@ export default function Sidebar({ setView }) {
       </div>
 
       {/* DOCUMENTOS */}
-      <div className="mb-3">
-        <button onClick={() => toggleMenu('documentos')} className={mainButtonClass}>
-          <span className="text-base">Documentos</span>
-          {openMenu === 'documentos' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+      <div className="mb-2">
+        <button
+          onClick={() => toggleMenu('documentos')}
+          className={mainButtonClass}
+          style={{ backgroundColor: C.botonPrincipal, color: '#fff' }}
+        >
+          <span>Documentos</span>
+          {openMenu === 'documentos'
+            ? <ChevronUp size={18} color="#fff" />
+            : <ChevronDown size={18} color="#fff" />}
         </button>
 
         <AnimatePresence>
@@ -116,7 +139,7 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col gap-1 mt-2"
+              className="flex flex-col mt-2 overflow-hidden"
               style={{ backgroundColor: C.submenu }}
             >
               {['Guías', 'Facturas'].map((label) => (
@@ -124,7 +147,7 @@ export default function Sidebar({ setView }) {
                   key={label}
                   onClick={() => alert(label)}
                   className={submenuButtonClass}
-                  style={{ backgroundColor: C.submenu }}
+                  style={{ backgroundColor: C.submenu, color: '#fff' }}
                   onMouseOver={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
                   onMouseOut={(e) => (e.currentTarget.style.backgroundColor = C.submenu)}
                 >
@@ -137,10 +160,16 @@ export default function Sidebar({ setView }) {
       </div>
 
       {/* ESTADO */}
-      <div className="mb-3">
-        <button onClick={() => toggleMenu('estado')} className={mainButtonClass}>
-          <span className="text-base">Estado</span>
-          {openMenu === 'estado' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+      <div className="mb-2">
+        <button
+          onClick={() => toggleMenu('estado')}
+          className={mainButtonClass}
+          style={{ backgroundColor: C.botonPrincipal, color: '#fff' }}
+        >
+          <span>Estado</span>
+          {openMenu === 'estado'
+            ? <ChevronUp size={18} color="#fff" />
+            : <ChevronDown size={18} color="#fff" />}
         </button>
 
         <AnimatePresence>
@@ -149,13 +178,13 @@ export default function Sidebar({ setView }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex flex-col gap-1 mt-2"
+              className="flex flex-col mt-2 overflow-hidden"
               style={{ backgroundColor: C.submenu }}
             >
               <button
                 onClick={() => alert('Vista Estado')}
                 className={submenuButtonClass}
-                style={{ backgroundColor: C.submenu }}
+                style={{ backgroundColor: C.submenu, color: '#fff' }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = C.hover)}
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = C.submenu)}
               >
@@ -165,9 +194,36 @@ export default function Sidebar({ setView }) {
           )}
         </AnimatePresence>
       </div>
+
+      {/* ZONA INFERIOR: Cerrar sesión + Control de Usuarios */}
+      <div className="mt-auto pt-6 sidebar-bottom">
+        {/* Cerrar sesión (gris) */}
+        <button
+          onClick={() => {
+            logout()        // limpia el token
+            setView('home') // vuelve a vista base; el overlay se mostrará por no estar autenticado
+          }}
+          className="btn-form btn-form--sm btn-form--gray w-full"
+          style={{ display: 'block' }}
+        >
+          Cerrar sesión
+        </button>
+
+        {/* Control de usuarios (solo admin) */}
+        {isAdmin && (
+          <button
+            onClick={() => setView('control-usuarios')}
+            className="btn-form btn-form--sm w-full"
+            >
+            Control de Usuarios
+          </button>
+        )}
+      </div>
     </aside>
   )
 }
+
+
 
 
 

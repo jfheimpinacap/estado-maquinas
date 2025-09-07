@@ -217,3 +217,72 @@ select.form-input {
   margin: 0 1.5rem 1.25rem 1.5rem; /* margen simétrico izq/der */
   padding: 1.25rem 1.5rem;
 }
+
+/* --- Panel de modal más compacto y centrado --- */
+.form-section--modal {
+  max-width: 380px;      /* más pequeño */
+  margin: 0;             /* el overlay ya centra */
+  padding: 1.25rem 1.25rem; /* menos padding */
+  border-radius: 14px;
+}
+.form-section--modal h1,
+.form-section--modal h2 {
+  font-size: 1.35rem;   /* títulos más pequeños */
+  margin-bottom: .75rem;
+  text-align: center;
+}
+
+/* --- Botón compacto para modal/login --- */
+.btn-form--sm {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+  border-radius: 10px;
+  margin-top: 0;        /* IMPORTANT: no heredar el margin-top grande */
+}
+
+/* Mini variante para botones compactos (p.ej. Cerrar sesión del sidebar) */
+.btn-form--sm {
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 10px;
+  margin-top: 0; /* que no empuje hacia abajo si está en línea */
+}
+
+/* fuerza blanco en todo el sidebar (texto e íconos) */
+.sidebar, .sidebar * { color: #fff !important; }
+.sidebar svg { stroke: #fff !important; }
+
+/* --- Panel de modal más compacto y centrado --- */
+/* ¡OJO! usa !important para vencer el margin de .form-section */
+.form-section--modal {
+  max-width: 380px;
+  margin: 0 !important;         /* centra perfecto en el overlay */
+  padding: 1.25rem 1.25rem;
+  border-radius: 14px;
+}
+.form-section--modal h1,
+.form-section--modal h2 {
+  font-size: 1.35rem;
+  margin-bottom: .75rem;
+  text-align: center;
+}
+
+/* pila vertical compacta (espacio entre inputs/botones) */
+.stack-sm > * + * { margin-top: 10px; }
+
+/* acciones del auth: botones centrados + espacio con el campo anterior */
+.auth-actions {
+  display: flex;
+  gap: .5rem;
+  justify-content: center;
+  margin-top: .5rem;     /* separa botones del input contraseña */
+}
+
+/* separación constante entre los dos botones del área inferior del sidebar */
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 5px; /* ← el espacio entre botones */
+}

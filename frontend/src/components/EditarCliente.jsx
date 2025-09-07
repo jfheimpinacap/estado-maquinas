@@ -1,18 +1,19 @@
 // src/components/EditarCliente.jsx
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import { useAuth } from "../context/AuthContext";
+import { authFetch } from "../lib/api";
 
-const backendURL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+export default function EditarCliente({
+  selectedCliente,
+  setSelectedCliente,
+  setView,
+}) {
+  const { auth, backendURL } = useAuth();
 
-export default function EditarCliente() {
-  const [query, setQuery] = useState("");
-  const [resultados, setResultados] = useState([]);
-  const [selected, setSelected] = useState(null);
-
-  // borrador editable sin tocar el seleccionado hasta guardar
-  const [draft, setDraft] = useState(null);
-
-  // control de edición por campo
+  // cliente en edición
+  const [selected, setSelected] = useState(selectedCliente || null);
+  const [draft, setDraft] = useState(selectedCliente ? { ...selectedCliente } : null);
   const [editMode, setEditMode] = useState({
     razon_social: false,
     rut: false,
@@ -21,16 +22,33 @@ export default function EditarCliente() {
     forma_pago: false,
   });
 
-  // refs
+  // buscador compacto (solo si no hay seleccionado)
+  const [query, setQuery] = useState("");
+  const [resultados, setResultados] = useState([]);
+  const searchInputRef = useRef(null);
   const refs = useRef({});
-  const formRef = useRef(null);
+
+  // sincroniza si cambia el seleccionado global
+  useEffect(() => {
+    if (selectedCliente) {
+      setSelected(selectedCliente);
+      setDraft({ ...selectedCliente });
+      setEditMode({
+        razon_social: false,
+        rut: false,
+        direccion: false,
+        telefono: false,
+        forma_pago: false,
+      });
+    }
+  }, [selectedCliente?.id]);
 
   const buscar = async () => {
+    const q = query.trim();
+    if (!q) return setResultados([]);
     try {
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(
-        query.trim()
-      )}`;
-      const res = await fetch(url);
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(q)}`;
+      const res = await authFetch(url, { token: auth.access });
       if (!res.ok) throw new Error("Error al buscar");
       const data = await res.json();
       setResultados(data);
@@ -40,25 +58,11 @@ export default function EditarCliente() {
     }
   };
 
-  const limpiar = () => {
-    setQuery("");
-    setResultados([]);
-  };
-
-  const cargarCliente = (cli) => {
+  const elegirCliente = (cli) => {
     setSelected(cli);
+    setSelectedCliente?.(cli);
     setDraft({ ...cli });
-    setEditMode({
-      razon_social: false,
-      rut: false,
-      direccion: false,
-      telefono: false,
-      forma_pago: false,
-    });
-    // desplazar el foco visual al formulario de la derecha
-    setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
+    setResultados([]);
   };
 
   const enableField = (name) => {
@@ -74,14 +78,15 @@ export default function EditarCliente() {
   const saveField = async (name) => {
     if (!selected) return;
     try {
-      const res = await fetch(`${backendURL}/clientes/${selected.id}`, {
+      const res = await authFetch(`${backendURL}/clientes/${selected.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [name]: draft[name] }),
+        token: auth.access,
+        json: { [name]: draft[name] },
       });
       if (!res.ok) throw new Error("No se pudo actualizar");
       const updated = await res.json();
       setSelected(updated);
+      setSelectedCliente?.(updated);
       setDraft((d) => ({ ...d, [name]: updated[name] }));
       setEditMode((m) => ({ ...m, [name]: false }));
       toast.success("Cambios guardados");
@@ -149,100 +154,94 @@ export default function EditarCliente() {
     </div>
   );
 
+  // --- RENDER ---
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Columna izquierda: buscador (cuadro independiente) */}
-      <section className="form-section form-section--compact">
-        <h1>Editar Cliente</h1>
+    <div className="space-y-4">
+      {/* Si NO hay cliente seleccionado: buscador compacto con mini-lista */}
+      {!selected && (
+        <section className="form-section form-section--compact">
+          <h1>Editar Cliente</h1>
 
-        <div className="flex items-center gap-2 mb-4">
-          <input
-            className="form-input w-64"
-            placeholder="Buscar por Razón Social o RUT"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && buscar()}
-            style={{ background: "rgb(224, 251, 252)", color: "#000" }}
-          />
-          <button type="button" className="btn-form btn-mini" onClick={buscar}>
-            Buscar
-          </button>
-          <button
-            type="button"
-            className="btn-form btn-mini btn-form--gray"
-            onClick={limpiar}
-          >
-            Limpiar
-          </button>
-        </div>
-      </section>
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              ref={searchInputRef}
+              className="form-input w-64"
+              placeholder="Buscar por Razón Social o RUT"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && buscar()}
+              style={{ background: "rgb(224, 251, 252)", color: "#000" }}
+            />
+            <button type="button" className="btn-form btn-mini" onClick={buscar}>
+              Buscar
+            </button>
+          </div>
 
-      {/* Columna derecha: formulario (independiente) */}
-      <section ref={formRef} className="form-section form-section--compact">
-        <h1>Datos del Cliente</h1>
+          {resultados.length > 0 && (
+            <ul className="divide-y">
+              {resultados.map((c) => (
+                <li key={c.id} className="py-2 flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">{c.razon_social}</div>
+                    <div className="text-xs text-gray-500">{c.rut}</div>
+                  </div>
+                  <button
+                    className="btn-sm-orange btn-sm-orange--short"
+                    onClick={() => elegirCliente(c)}
+                  >
+                    Editar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
-        {!selected ? (
-          <p className="text-gray-600 text-sm">
-            Busca un cliente y selecciónalo para editar.
-          </p>
-        ) : (
-          <div className="space-y-3">
+      {/* Si hay seleccionado: solo el formulario de edición */}
+      {selected && (
+        <section className="form-section form-section--compact">
+          <h1>Datos del Cliente</h1>
+
+          <div className="stack-sm">
             <FieldRow name="razon_social" placeholder="Razón Social" />
             <FieldRow name="rut" placeholder="RUT" />
             <FieldRow name="direccion" placeholder="Dirección" />
             <FieldRow name="telefono" placeholder="Teléfono" />
             <FieldRow name="forma_pago" as="select" />
           </div>
-        )}
-      </section>
 
-      {/* Fila inferior: tabla de resultados a lo ancho (como en BuscarCliente) */}
-      <section className="panel-section panel-section--full lg:col-span-2">
-        <div className="table-wrap">
-          <table className="w-full text-left">
-            <thead>
-              <tr>
-                <th>Razón Social</th>
-                <th>RUT</th>
-                <th>Dirección</th>
-                <th>Teléfono</th>
-                <th>Forma de Pago</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resultados.length === 0 ? (
-                <tr>
-                  <td className="py-4 text-center text-gray-500" colSpan={6}>
-                    Ingresa un término de búsqueda o no hay resultados.
-                  </td>
-                </tr>
-              ) : (
-                resultados.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.razon_social}</td>
-                    <td>{c.rut}</td>
-                    <td>{c.direccion || "—"}</td>
-                    <td>{c.telefono || "—"}</td>
-                    <td>{c.forma_pago || "—"}</td>
-                    <td>
-                      <button
-                        className="btn-sm-orange btn-sm-orange--short"
-                        onClick={() => cargarCliente(c)}
-                      >
-                        Editar
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          {/* Acciones abajo y centradas */}
+          <div className="form-actions" style={{ gap: ".5rem", marginTop: "1rem" }}>
+            <button
+              type="button"
+              className="btn-form btn-form--sm btn-form--gray"
+              onClick={() => setView("ver-cliente")}
+            >
+              ← Atrás
+            </button>
+            <button
+              type="button"
+              className="btn-form btn-form--sm btn-form--gray"
+              onClick={() => {
+                setSelected(null);
+                setSelectedCliente?.(null);
+                setQuery("");
+                setResultados([]);
+                setView("editar-cliente");
+                setTimeout(() => searchInputRef.current?.focus(), 100);
+              }}
+            >
+              Editar otro cliente
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
+
+
 
 
 

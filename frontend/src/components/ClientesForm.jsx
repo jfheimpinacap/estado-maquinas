@@ -1,6 +1,8 @@
 // src/components/ClientesForm.jsx
-import { useState } from "react";
-import { toast } from "react-toastify";
+import { useState } from "react"
+import { toast } from "react-toastify"
+import { useAuth } from "../context/AuthContext"
+import { authFetch } from "../lib/api"
 
 function ClientesForm() {
   const [nuevoCliente, setNuevoCliente] = useState({
@@ -9,32 +11,32 @@ function ClientesForm() {
     direccion: "",
     telefono: "",
     forma_pago: "",
-  });
+  })
 
-  const backendURL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+  const { auth, backendURL } = useAuth()
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault()
     try {
-      const res = await fetch(`${backendURL}/clientes`, {
+      const res = await authFetch(`${backendURL}/clientes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nuevoCliente),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      toast.success(`✅ Cliente creado con ID ${data.id}`);
+        token: auth.access,
+        json: nuevoCliente,
+      })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      toast.success(`✅ Cliente creado con ID ${data.id}`)
       setNuevoCliente({
         razon_social: "",
         rut: "",
         direccion: "",
         telefono: "",
         forma_pago: "",
-      });
+      })
     } catch {
-      toast.error("❌ Error al crear el cliente");
+      toast.error("❌ Error al crear el cliente")
     }
-  };
+  }
 
   return (
     <section className="form-section form-section--compact">
@@ -93,10 +95,11 @@ function ClientesForm() {
         </div>
       </form>
     </section>
-  );
+  )
 }
 
-export default ClientesForm;
+export default ClientesForm
+
 
 
 

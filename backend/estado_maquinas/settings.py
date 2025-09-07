@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     # Terceros
     'rest_framework',
     'corsheaders',
+    'rest_framework_simplejwt',
 
     # Tu app
     'api',
@@ -91,8 +92,17 @@ STATIC_URL = 'static/'
 
 # ---------- DRF ----------
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [],  # sin sesiones → sin CSRF en API
-    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # <— JWT
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',  # <— exigir login por defecto
+    ],
+}
+
+# Opcional, pero explícito:
+SIMPLE_JWT = {
+    "AUTH_HEADER_TYPES": ("Bearer",),  # el frontend ya envía 'Bearer <token>'
 }
 
 # ---------- CORS ----------

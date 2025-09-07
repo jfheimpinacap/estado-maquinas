@@ -1,6 +1,11 @@
 // src/components/VerCliente.jsx
-export default function VerCliente({ cliente, setView }) {
-  if (!cliente) return <p>No se ha seleccionado cliente.</p>;
+export default function VerCliente({ cliente, setView, setSelectedCliente }) {
+  if (!cliente) return (
+    <section className="form-section form-section--compact">
+      <h1>Datos del Cliente</h1>
+      <p className="text-gray-600 text-sm">No se ha seleccionado cliente.</p>
+    </section>
+  );
 
   return (
     <section className="form-section form-section--compact">
@@ -14,13 +19,17 @@ export default function VerCliente({ cliente, setView }) {
         <div><strong>Forma de Pago:</strong> {cliente.forma_pago || "—"}</div>
       </div>
 
-      <div className="flex gap-3 mt-4">
+      <div className="form-actions" style={{ gap: ".5rem", marginTop: "1rem" }}>
         <button
-          className="btn-form btn-mini"
-          onClick={() => setView("editar-cliente")}
+          className="btn-sm-orange"
+          onClick={() => {
+            setSelectedCliente(cliente);     // deja seleccionado global
+            setView('editar-cliente');       // navega directo al formulario de edición
+          }}
         >
           Editar datos
         </button>
+
         <button
           className="btn-form btn-mini btn-form--gray"
           onClick={() => setView("ver-movimientos")}
@@ -31,4 +40,5 @@ export default function VerCliente({ cliente, setView }) {
     </section>
   );
 }
+
 
