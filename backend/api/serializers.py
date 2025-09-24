@@ -8,9 +8,22 @@ class ClienteSerializer(serializers.ModelSerializer):
         fields = ['id','razon_social','rut','direccion','telefono','forma_pago']
 
 class MaquinariaSerializer(serializers.ModelSerializer):
+    obra = serializers.SerializerMethodField()  
+
     class Meta:
         model = Maquinaria
-        fields = ['id','marca','modelo','serie','altura','estado']
+        fields = [
+            'id', 'marca', 'modelo', 'serie',
+            'categoria', 'descripcion',
+            'altura', 'anio', 'tonelaje', 'carga',
+            'estado', 'obra'
+        ]
+
+    def get_obra(self, obj):
+        arriendo_activo = obj.arriendos.filter(estado="Activo").select_related("obra").order_by('-fecha_inicio').first()
+        if arriendo_activo and arriendo_activo.obra:
+            return arriendo_activo.obra.nombre
+        return "Bodega"    
 
 class ObraSerializer(serializers.ModelSerializer):
     class Meta:

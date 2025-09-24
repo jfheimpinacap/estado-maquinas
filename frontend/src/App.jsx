@@ -4,7 +4,8 @@ import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import Sidebar from './components/Sidebar'
 import MaquinariaForm from './components/MaquinariaForm'
-import MaquinariasList from './components/MaquinariasList'
+import BuscarMaquina from "./components/BuscarMaquina"
+import HistorialMaquina from "./components/HistorialMaquina"
 import ClientesForm from './components/ClientesForm'
 import ClientesList from './components/ClientesList'
 import BuscarCliente from './components/BuscarCliente'
@@ -18,6 +19,7 @@ import './App.css'
 function App() {
   const [view, setView] = useState('home')
   const [selectedCliente, setSelectedCliente] = useState(null)
+  const [selectedMaquina, setSelectedMaquina] = useState(null)
   const { auth } = useAuth()
 
   return (
@@ -29,7 +31,12 @@ function App() {
 
       <main className="flex-1 p-8 bg-white min-h-screen text-black">
         {view === 'crearMaquinaria' && <MaquinariaForm />}
-        {view === 'listaMaquinarias' && <MaquinariasList />}
+        {view === 'buscarMaquina' && (
+        <BuscarMaquina setView={setView} setSelectedMaquina={setSelectedMaquina} />
+        )}
+        {view === 'historial-maquina' && (
+        <HistorialMaquina selectedMaquina={selectedMaquina} setView={setView} />
+        )}
         {view === 'crear-cliente' && <ClientesForm />}
         {view === 'listar-clientes' && <ClientesList />}
         {view === 'buscar-cliente' && (

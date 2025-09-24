@@ -6,7 +6,12 @@ class Maquinaria(models.Model):
     serie = models.CharField(max_length=50, unique=True)
     altura = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     estado = models.CharField(max_length=20, default="Disponible")
-
+    categoria = models.CharField(max_length=30, null=True, blank=True)     # 'equipos_altura' | 'camiones' | 'equipos_carga'
+    descripcion = models.CharField(max_length=400, null=True, blank=True)
+    anio = models.IntegerField(null=True, blank=True)
+    tonelaje = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    carga = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    
     class Meta:
         managed = False
         db_table = 'Maquinaria'

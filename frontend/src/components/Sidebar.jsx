@@ -99,10 +99,10 @@ export default function Sidebar({ setView }) {
               style={{ backgroundColor: C.submenu }}
             >
               {[
-                ['crearMaquinaria', 'Crear'],
-                ['listaMaquinarias', 'Listar'],
-                [null, 'Editar'],
-                [null, 'Borrar'],
+                ['crearMaquinaria', 'Crear maquinaria'],
+                ['buscarMaquina', 'Buscar máquina'],
+                ['editarMaquinarias', 'Editar máquinas'],
+                ['borrarMaquinarias', 'Borrar'],
               ].map(([view, label]) => (
                 <button
                   key={label}

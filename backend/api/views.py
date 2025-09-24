@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Case, When, IntegerField
 from .models import Maquinaria, Cliente, Obra, Arriendo, Documento
 from .serializers import (
     MaquinariaSerializer, ClienteSerializer, ObraSerializer,
@@ -8,7 +8,7 @@ from .serializers import (
 )
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import UserSerializer
@@ -17,6 +17,69 @@ from .serializers import UserSerializer
 class MaquinariaViewSet(viewsets.ModelViewSet):
     queryset = Maquinaria.objects.all()
     serializer_class = MaquinariaSerializer
+
+    # GET /maquinarias?query=...
+    def list(self, request, *args, **kwargs):
+        q = (request.GET.get("query") or "").strip()
+        qs = self.get_queryset()
+
+        if q:
+            # Prioriza SERIE exacta y luego marca/modelo contiene
+            qs = qs.filter(
+                Q(serie__iexact=q) |
+                Q(marca__icontains=q) |
+                Q(modelo__icontains=q)
+            ).annotate(
+                serie_match=Case(
+                    When(serie__iexact=q, then=1),
+                    default=0,
+                    output_field=IntegerField()
+                )
+            ).order_by('-serie_match', 'marca', 'modelo')
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    # GET /maquinarias/{id}/historial
+    @action(detail=True, methods=['get'])
+    def historial(self, request, pk=None):
+        """
+        Devuelve historial cronológico de arriendos de la máquina con:
+        - documento (último doc del arriendo, tipo y número si hay)
+        - fecha_inicio
+        - fecha_termino
+        - obra (nombre)
+        Más reciente primero.
+        """
+        try:
+            maq = Maquinaria.objects.get(pk=pk)
+        except Maquinaria.DoesNotExist:
+            return Response({"detail": "Maquinaria no encontrada"}, status=404)
+
+        # Trae todos los arriendos de la máquina + documentos (prefetch)
+        arriendos = (Arriendo.objects
+                     .filter(maquinaria=maq)
+                     .select_related('obra')
+                     .prefetch_related('documentos')
+                     .order_by('-fecha_inicio', '-id'))
+
+        historial = []
+        for arr in arriendos:
+            # "Último" documento de ese arriendo (por fecha_emision, y si empata, por id)
+            doc = (arr.documentos.all().order_by('-fecha_emision', '-id').first())
+            if doc:
+                doc_label = f"{doc.tipo} {doc.numero}"
+            else:
+                doc_label = "—"
+
+            historial.append({
+                "documento": doc_label,
+                "fecha_inicio": arr.fecha_inicio,
+                "fecha_termino": arr.fecha_termino,
+                "obra": arr.obra.nombre if arr.obra_id else "—",
+            })
+
+        return Response(historial, status=200)
 
 class ClienteViewSet(viewsets.ModelViewSet):
     queryset = Cliente.objects.all()
