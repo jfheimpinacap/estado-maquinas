@@ -64,21 +64,12 @@ WSGI_APPLICATION = 'estado_maquinas.wsgi.application'
 # ---------- SQL Server (mssql-django) ----------
 import os
 
+
+# --- Base de datos: SQLite portable ---
 DATABASES = {
     "default": {
-        "ENGINE": "mssql",  # requiere mssql-django
-        "NAME": os.environ.get("DB_NAME", "MaquinasClientes"),
-        "USER": os.environ.get("DB_USER", "sa"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", "Franz2024!"),
-        "HOST": os.environ.get("DB_HOST", r"FRANZ-PC\SQLEXPRESS"),
-        "PORT": os.environ.get("DB_PORT", ""),  # usualmente vacío con SQLEXPRESS
-        "OPTIONS": {
-            "driver": os.environ.get("DB_DRIVER", "ODBC Driver 17 for SQL Server"),
-            # Lo siguiente es válido y útil para desarrollo local con certificados self-signed
-            "extra_params": os.environ.get("DB_EXTRA", "TrustServerCertificate=yes;"),
-            # Alternativa equivalente (cualquiera de las dos):
-            # "trustServerCertificate": "yes",
-        },
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 

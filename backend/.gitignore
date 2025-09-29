@@ -39,3 +39,12 @@ venv/
 
 # Django static (si algún día colectas)
 staticfiles/
+
+# Entorno
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Base de datos local
+db.sqlite3

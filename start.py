@@ -1,4 +1,4 @@
-# start.py
+# start.py (SQLite-ready)
 import os
 import sys
 import subprocess
@@ -17,6 +17,7 @@ CANDIDATE_VENVS = [
     ROOT / "venv",
 ]
 
+# -------- utilidades --------
 def which_venv():
     for v in CANDIDATE_VENVS:
         py = v / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
@@ -35,19 +36,11 @@ def run(cmd, cwd=None, env=None, check=True, capture=False):
         text=True
     )
 
-def ensure_sql_server():
-    if os.name != "nt":
-        return
-    try:
-        subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             "Start-Service -Name 'MSSQL$SQLEXPRESS'"],
-            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-    except Exception:
-        pass
-
 def ensure_backend_venv_and_deps():
+    """
+    Crea/usa venv y asegura dependencias mínimas para Django + SQLite.
+    NO instala mssql-django ni pyodbc.
+    """
     venv_dir = which_venv()
     if not venv_dir:
         venv_dir = BACKEND / ".venv"
@@ -57,51 +50,57 @@ def ensure_backend_venv_and_deps():
     py = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     pip = [str(py), "-m", "pip"]
 
-    # ¿Faltan paquetes?
+    # Verificar módulos requeridos
     test_code = (
-        "import importlib as i; "
-        "mods=['django','rest_framework','corsheaders','mssql','pyodbc','dotenv'];"
-        "missing=[m for m in mods if not i.util.find_spec(m)]; "
+        "import importlib.util as u;"
+        "mods=['django','rest_framework','corsheaders','dotenv','rest_framework_simplejwt'];"
+        "missing=[m for m in mods if u.find_spec(m) is None];"
         "print(','.join(missing))"
     )
     proc = run([str(py), "-c", test_code], capture=True, check=False)
-    missing = [m for m in proc.stdout.strip().split(",") if m]
+    missing = [m for m in (proc.stdout or '').strip().split(",") if m]
 
-    if missing:
-        print("🔧 Actualizando pip...")
-        run(pip + ["install", "-U", "pip", "wheel"])
-        req = BACKEND / "requirements.txt"
-        if req.exists():
-            print("📦 Instalando dependencias (requirements.txt)...")
-            run(pip + ["install", "-r", str(req)])
-        else:
+    print("🔧 Actualizando pip...")
+    run(pip + ["install", "-U", "pip", "wheel"])
+
+    req = BACKEND / "requirements.txt"
+    if req.exists():
+        print("📦 Instalando dependencias (requirements.txt)...")
+        run(pip + ["install", "-r", str(req)])
+    else:
+        # Instalación mínima si no hay requirements.txt
+        base_pkgs = [
+            "Django>=5.1,<6",
+            "djangorestframework>=3.15",
+            "django-cors-headers>=4.4",
+            "python-dotenv>=1.0",
+            "djangorestframework-simplejwt>=5.3",
+        ]
+        # Si ya faltaban módulos, instala los mínimos también
+        if missing:
             print("📦 Instalando dependencias mínimas (no hay requirements.txt)...")
-            run(pip + ["install",
-                       "django==5.*",
-                       "djangorestframework",
-                       "django-cors-headers",
-                       "mssql-django",
-                       "pyodbc",
-                       "python-dotenv",
-                       "djangorestframework-simplejwt"])
+            run(pip + ["install"] + base_pkgs)
 
     return py
 
 def ensure_frontend_deps():
     if not (FRONTEND / "package.json").exists():
-        print("❌ No se encontró frontend/package.json. Revisa la ruta del frontend.")
+        print("ℹ️  No se encontró frontend/package.json. Se omitirá el frontend.")
         return False
     if not (FRONTEND / "node_modules").exists():
         if not has_command("npm"):
-            print("❌ npm no está disponible en PATH. Instala Node.js.")
+            print("❌ npm no está disponible en PATH. Instala Node.js para levantar el frontend.")
             return False
         print("📦 Instalando dependencias de frontend (npm install)...")
         run(["npm", "install"], cwd=str(FRONTEND))
     return True
 
 def run_manage(py_exe, *args, check=True):
-    """Ejecuta manage.py con los args indicados en el directorio backend."""
-    cmd = [str(py_exe), "manage.py", *args]
+    """Ejecuta manage.py con args indicados en el directorio backend."""
+    manage = BACKEND / "manage.py"
+    if not manage.exists():
+        raise FileNotFoundError(f"No se encontró {manage}")
+    cmd = [str(py_exe), str(manage), *args]
     return run(cmd, cwd=str(BACKEND), check=check)
 
 def open_new_console_windows(title, command, cwd=None):
@@ -132,27 +131,46 @@ def open_new_console_windows(title, command, cwd=None):
     except Exception as e:
         print(f"⚠️  No se pudo abrir ventana '{title}': {e}")
 
+def warn_if_not_sqlite(py_exe):
+    """
+    Advierte si la BD por settings.py no es SQLite (por si olvidaste cambiar DATABASES).
+    No bloquea el arranque.
+    """
+    code = (
+        "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','backend.settings');"
+        "import django; django.setup();"
+        "from django.conf import settings;"
+        "db = settings.DATABASES.get('default',{});"
+        "print(db.get('ENGINE',''))"
+    )
+    try:
+        proc = run([str(py_exe), "-c", code], capture=True, check=True, cwd=str(BACKEND))
+        engine = (proc.stdout or "").strip()
+        if "sqlite3" not in engine:
+            print(f"⚠️  Advertencia: la BD activa no es SQLite (ENGINE='{engine}'). Revisa settings.DATABASES.")
+    except Exception:
+        # Si falla, no bloqueamos; Django puede configurar DJANGO_SETTINGS_MODULE distinto
+        pass
+
 def main():
     os.chdir(ROOT)
-    print("🚀 Preparando proyecto...")
+    print("🚀 Preparando proyecto (modo SQLite, sin MSSQL)...")
 
-    # 1) SQL Server (opcional, no bloqueante)
-    print("🗄️  Intentando iniciar SQL Server Express (MSSQL$SQLEXPRESS)...")
-    ensure_sql_server()
-
-    # 2) Backend: venv + deps
+    # 1) Backend: venv + deps (mínimas)
     py = ensure_backend_venv_and_deps()
 
-    # 3) Migraciones (makemigrations api + migrate)
+    # 2) Advertir si la BD no es SQLite (para evitar confusión)
+    warn_if_not_sqlite(py)
+
+    # 3) Migraciones
     try:
-        print("🧱 Django: makemigrations api...")
-        run_manage(py, "makemigrations", "api", check=False)  # no romper si no hay cambios
+        print("🧱 Django: makemigrations (todas las apps)...")
+        run_manage(py, "makemigrations", check=False)  # tolerante si no hay cambios
         print("🧱 Django: migrate...")
         run_manage(py, "migrate")
     except subprocess.CalledProcessError as e:
         print("❌ Error al aplicar migraciones.")
         print(e)
-        # seguimos, puede que el server arranque igual si ya estaban aplicadas
 
     # 4) Frontend deps
     ok_fe = ensure_frontend_deps()
@@ -191,4 +209,3 @@ if __name__ == "__main__":
         sys.exit(e.returncode)
     except KeyboardInterrupt:
         print("\n⏹️  Interrumpido por el usuario.")
-
