@@ -1,51 +1,53 @@
+// frontend/src/components/auth/LoginPage.jsx
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import "../../styles/FormStyles.css";
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const navigate = useNavigate();
-  const [usuario, setUsuario] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
+  const [msg, setMsg] = useState("");
 
-  const doLogin = async (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    setErr(""); setOk("");
-    if (!usuario || !password) return setErr("Completa usuario y contraseña.");
+    setMsg("");
     try {
-      await login(usuario, password);
-      setOk("Ingreso correcto");
-      navigate("/");
-    } catch (e) {
-      setErr(e?.message || "Error de login");
+      await login(username, password);
+    } catch (err) {
+      setMsg(err.message || "Error de autenticación");
     }
   };
 
   return (
-    <main className="auth-page">
-      <div className="auth-card form-section">
-        <h1 className="text-center">Bienvenido al sistema</h1>
-        {err && <div style={{ color: "#b91c1c", marginBottom: ".5rem" }}>{err}</div>}
-        {ok &&  <div style={{ color: "#15803d", marginBottom: ".5rem" }}>{ok}</div>}
-        <form onSubmit={doLogin} className="stack-sm" noValidate>
-          <input className="form-input" placeholder="Usuario" value={usuario} onChange={(e)=>setUsuario(e.target.value)} autoFocus />
-          <input className="form-input" type="password" placeholder="Contraseña" value={password} onChange={(e)=>setPassword(e.target.value)} />
-          <div className="auth-actions">
-            <button className="btn-inline" type="submit">Iniciar sesión</button>
-            <Link to="/register" className="btn-inline btn-inline--gray" role="button">Crear usuario</Link>
-          </div>
-        </form>
-        <p className="auth-help">
-          Recuperar clave.{" "}
-          <button className="link-inline" type="button" onClick={()=>alert("Abrir modal de recuperación por correo")}>
-            Click aquí
-          </button>
-        </p>
+    <section className="form-section">
+      <h1>Ingresar</h1>
+      <form onSubmit={onSubmit} className="stack-md">
+        <input
+          className="form-input w-72"
+          placeholder="Usuario"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          autoFocus
+          required
+        />
+        <input
+          className="form-input w-72"
+          type="password"
+          placeholder="Contraseña"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        {msg && <p style={{ color: "crimson" }}>{msg}</p>}
+        <button className="btn-form" type="submit">Iniciar sesión</button>
+      </form>
+
+      <div style={{ marginTop: 12 }}>
+        <a href="/recover" className="link">¿Olvidaste tu contraseña?</a>
       </div>
-    </main>
+    </section>
   );
 }
+
+
 

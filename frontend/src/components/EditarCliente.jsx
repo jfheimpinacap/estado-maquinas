@@ -1,4 +1,3 @@
-// src/components/EditarCliente.jsx
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
@@ -11,37 +10,59 @@ export default function EditarCliente({
 }) {
   const { auth, backendURL } = useAuth();
 
-  // cliente en edición
-  const [selected, setSelected] = useState(selectedCliente || null);
-  const [draft, setDraft] = useState(selectedCliente ? { ...selectedCliente } : null);
+  const [selected, setSelected] = useState(null);
+  const [draft, setDraft] = useState(null);
+
   const [editMode, setEditMode] = useState({
     razon_social: false,
     rut: false,
     direccion: false,
     telefono: false,
+    correo_electronico: false,
     forma_pago: false,
   });
 
-  // buscador compacto (solo si no hay seleccionado)
   const [query, setQuery] = useState("");
   const [resultados, setResultados] = useState([]);
   const searchInputRef = useRef(null);
   const refs = useRef({});
 
-  // sincroniza si cambia el seleccionado global
+  // 👉 Inicializa vista según haya o no selectedCliente:
+  // - Si viene un cliente (desde "Ver cliente" → "Editar datos"): abre formulario directamente.
+  // - Si no viene: resetea y muestra buscador.
   useEffect(() => {
     if (selectedCliente) {
+      // Modo edición directa
       setSelected(selectedCliente);
       setDraft({ ...selectedCliente });
+      setResultados([]);
       setEditMode({
         razon_social: false,
         rut: false,
         direccion: false,
         telefono: false,
+        correo_electronico: false,
         forma_pago: false,
       });
+    } else {
+      // Modo búsqueda
+      setSelected(null);
+      setDraft(null);
+      setResultados([]);
+      setEditMode({
+        razon_social: false,
+        rut: false,
+        direccion: false,
+        telefono: false,
+        correo_electronico: false,
+        forma_pago: false,
+      });
+      // foco al buscador
+      const t = setTimeout(() => searchInputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
     }
-  }, [selectedCliente?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCliente?.id]); // se re-evalúa si cambias de cliente
 
   const buscar = async () => {
     const q = query.trim();
@@ -78,12 +99,16 @@ export default function EditarCliente({
   const saveField = async (name) => {
     if (!selected) return;
     try {
+      const payload = { [name]: draft[name] };
       const res = await authFetch(`${backendURL}/clientes/${selected.id}`, {
         method: "PATCH",
         token: auth.access,
-        json: { [name]: draft[name] },
+        json: payload,
       });
-      if (!res.ok) throw new Error("No se pudo actualizar");
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`No se pudo actualizar (HTTP ${res.status}) ${txt}`);
+      }
       const updated = await res.json();
       setSelected(updated);
       setSelectedCliente?.(updated);
@@ -96,68 +121,73 @@ export default function EditarCliente({
     }
   };
 
-  const FieldRow = ({ name, placeholder, type = "text", as = "input" }) => (
-    <div className="field-row">
-      {as === "select" ? (
-        <select
-          ref={(el) => (refs.current[name] = el)}
-          className="form-input flex-1"
-          value={draft?.[name] ?? ""}
-          onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
-          disabled={!editMode[name]}
-        >
-          <option value="">Seleccione Forma de Pago</option>
-          <option value="Pago a 15 días">Pago a 15 días</option>
-          <option value="Pago a 30 días">Pago a 30 días</option>
-          <option value="Pago contado">Pago contado</option>
-        </select>
-      ) : (
-        <input
-          ref={(el) => (refs.current[name] = el)}
-          type={type}
-          className="form-input flex-1"
-          placeholder={placeholder}
-          value={draft?.[name] ?? ""}
-          onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
-          readOnly={!editMode[name]}
-        />
-      )}
+  const FieldRow = ({ name, placeholder, type = "text", as = "input" }) => {
+    const disabled = !editMode[name];
 
-      <div className="actions-inline">
-        {!editMode[name] ? (
-          <button
-            type="button"
-            className="btn-form btn-mini btn-form--gray"
-            onClick={() => enableField(name)}
+    return (
+      <div className="field-row">
+        {as === "select" ? (
+          <select
+            ref={(el) => (refs.current[name] = el)}
+            className="form-input flex-1"
+            value={draft?.[name] ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+            disabled={disabled}
           >
-            Editar
-          </button>
+            <option value="">Seleccione Forma de Pago</option>
+            <option value="Pago a 15 días">Pago a 15 días</option>
+            <option value="Pago a 30 días">Pago a 30 días</option>
+            <option value="Pago contado">Pago contado</option>
+          </select>
         ) : (
-          <>
-            <button
-              type="button"
-              className="btn-form btn-mini"
-              onClick={() => saveField(name)}
-            >
-              Guardar
-            </button>
+          <input
+            ref={(el) => (refs.current[name] = el)}
+            type={type}
+            className="form-input flex-1"
+            placeholder={placeholder}
+            value={draft?.[name] ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+            disabled={disabled}
+            autoFocus={editMode[name]}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        )}
+
+        <div className="actions-inline">
+          {!editMode[name] ? (
             <button
               type="button"
               className="btn-form btn-mini btn-form--gray"
-              onClick={() => cancelField(name)}
+              onClick={() => enableField(name)}
             >
-              Cancelar
+              Editar
             </button>
-          </>
-        )}
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn-form btn-mini"
+                onClick={() => saveField(name)}
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                className="btn-form btn-mini btn-form--gray"
+                onClick={() => cancelField(name)}
+              >
+                Cancelar
+              </button>
+            </>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  // --- RENDER ---
   return (
     <div className="space-y-4">
-      {/* Si NO hay cliente seleccionado: buscador compacto con mini-lista */}
+      {/* Buscador (si no hay cliente seleccionado) */}
       {!selected && (
         <section className="form-section form-section--compact">
           <h1>Editar Cliente</h1>
@@ -198,7 +228,7 @@ export default function EditarCliente({
         </section>
       )}
 
-      {/* Si hay seleccionado: solo el formulario de edición */}
+      {/* Formulario (si ya elegiste uno o vienes desde "Ver cliente") */}
       {selected && (
         <section className="form-section form-section--compact">
           <h1>Datos del Cliente</h1>
@@ -208,10 +238,10 @@ export default function EditarCliente({
             <FieldRow name="rut" placeholder="RUT" />
             <FieldRow name="direccion" placeholder="Dirección" />
             <FieldRow name="telefono" placeholder="Teléfono" />
+            <FieldRow name="correo_electronico" placeholder="Correo electrónico" type="email" />
             <FieldRow name="forma_pago" as="select" />
           </div>
 
-          {/* Acciones abajo y centradas */}
           <div className="form-actions" style={{ gap: ".5rem", marginTop: "1rem" }}>
             <button
               type="button"
@@ -224,12 +254,13 @@ export default function EditarCliente({
               type="button"
               className="btn-form btn-form--sm btn-form--gray"
               onClick={() => {
+                // Forzar nuevo ciclo de edición: volver al buscador
                 setSelected(null);
                 setSelectedCliente?.(null);
                 setQuery("");
                 setResultados([]);
                 setView("editar-cliente");
-                setTimeout(() => searchInputRef.current?.focus(), 100);
+                setTimeout(() => searchInputRef.current?.focus(), 50);
               }}
             >
               Editar otro cliente

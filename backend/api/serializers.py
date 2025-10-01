@@ -1,14 +1,45 @@
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from .models import Cliente, Maquinaria, Obra, Arriendo, Documento
 from django.contrib.auth.models import User
 
 class ClienteSerializer(serializers.ModelSerializer):
+    telefono = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    direccion = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    forma_pago = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    correo_electronico = serializers.EmailField(allow_blank=True, allow_null=True, required=False)
+
     class Meta:
         model = Cliente
-        fields = ['id','razon_social','rut','direccion','telefono','forma_pago']
+        fields = [
+            'id','razon_social','rut','direccion','telefono',
+            'correo_electronico','forma_pago'
+        ]
+
+    def validate(self, attrs):
+        for k in ['direccion','telefono','forma_pago','correo_electronico']:
+            if attrs.get(k, None) == '':
+                attrs[k] = None
+
+        is_partial = getattr(self, 'partial', False)
+
+        if (not is_partial) or ('rut' in attrs):
+            rut = (attrs.get('rut') or '').strip()
+            if not rut:
+                raise serializers.ValidationError({'rut': 'El RUT es obligatorio.'})
+            attrs['rut'] = rut.upper()
+
+        if (not is_partial) or ('razon_social' in attrs):
+            rs = (attrs.get('razon_social') or '').strip()
+            if not rs:
+                raise serializers.ValidationError({'razon_social': 'La razón social es obligatoria.'})
+            attrs['razon_social'] = rs
+
+        return attrs
+
 
 class MaquinariaSerializer(serializers.ModelSerializer):
-    obra = serializers.SerializerMethodField()  
+    obra = serializers.SerializerMethodField()
 
     class Meta:
         model = Maquinaria
@@ -23,22 +54,24 @@ class MaquinariaSerializer(serializers.ModelSerializer):
         arriendo_activo = obj.arriendos.filter(estado="Activo").select_related("obra").order_by('-fecha_inicio').first()
         if arriendo_activo and arriendo_activo.obra:
             return arriendo_activo.obra.nombre
-        return "Bodega"    
+        return "Bodega"
+
 
 class ObraSerializer(serializers.ModelSerializer):
     class Meta:
         model = Obra
         fields = ['id','nombre','direccion','contacto_nombre','contacto_telefono','contacto_email']
 
+
 class ArriendoSerializer(serializers.ModelSerializer):
-    # Exponer FKs como IDs (PKs)
-    maquinaria = serializers.PrimaryKeyRelatedField(queryset=Maquinaria.objects.all())
-    cliente = serializers.PrimaryKeyRelatedField(queryset=Cliente.objects.all())
-    obra = serializers.PrimaryKeyRelatedField(queryset=Obra.objects.all())
+    maquinaria = serializers.PrimaryKeyRelatedField(queryset=Maquinaria.objects.all(), allow_null=True, required=False)
+    cliente = serializers.PrimaryKeyRelatedField(queryset=Cliente.objects.all(), allow_null=True, required=False)
+    obra = serializers.PrimaryKeyRelatedField(queryset=Obra.objects.all(), allow_null=True, required=False)
 
     class Meta:
         model = Arriendo
         fields = ['id','maquinaria','cliente','obra','fecha_inicio','fecha_termino','periodo','tarifa','estado']
+
 
 class DocumentoSerializer(serializers.ModelSerializer):
     arriendo = serializers.PrimaryKeyRelatedField(queryset=Arriendo.objects.all())
@@ -47,13 +80,29 @@ class DocumentoSerializer(serializers.ModelSerializer):
         model = Documento
         fields = ['id','arriendo','tipo','numero','fecha_emision','archivo_url']
 
+
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, min_length=6)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'password', 'is_staff', 'is_superuser', 'date_joined']
+        fields = ['id', 'username', 'email', 'password', 'is_staff', 'is_superuser', 'date_joined']
         read_only_fields = ['id', 'date_joined']
+
+    def validate(self, attrs):
+        """
+        Seguridad:
+        - Sólo un superusuario puede cambiar is_superuser.
+        - Un admin (is_staff) o superuser puede cambiar is_staff.
+        """
+        request = self.context.get('request')
+        if request and 'is_superuser' in attrs:
+            if not request.user.is_superuser:
+                raise PermissionDenied("No tiene permisos para cambiar 'is_superuser'.")
+        if request and 'is_staff' in attrs:
+            if not (request.user.is_staff or request.user.is_superuser):
+                raise PermissionDenied("No tiene permisos para cambiar 'is_staff'.")
+        return attrs
 
     def create(self, validated_data):
         pwd = validated_data.pop('password', None)
@@ -71,3 +120,6 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(pwd)
         instance.save()
         return instance
+
+
+

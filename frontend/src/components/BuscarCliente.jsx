@@ -78,6 +78,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                 <th>Razón Social</th>
                 <th>RUT</th>
                 <th>Dirección</th>
+                <th>Correo</th>
                 <th>Teléfono</th>
                 <th>Forma de Pago</th>
                 <th>Acciones</th>
@@ -96,6 +97,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                     <td>{cliente.razon_social}</td>
                     <td>{cliente.rut}</td>
                     <td>{cliente.direccion || "—"}</td>
+                    <td>{cliente.correo_electronico || "—"}</td>
                     <td>{cliente.telefono || "—"}</td>
                     <td>{cliente.forma_pago || "—"}</td>
                     <td>

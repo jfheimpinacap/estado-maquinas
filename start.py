@@ -68,7 +68,6 @@ def ensure_backend_venv_and_deps():
         print("📦 Instalando dependencias (requirements.txt)...")
         run(pip + ["install", "-r", str(req)])
     else:
-        # Instalación mínima si no hay requirements.txt
         base_pkgs = [
             "Django>=5.1,<6",
             "djangorestframework>=3.15",
@@ -76,7 +75,6 @@ def ensure_backend_venv_and_deps():
             "python-dotenv>=1.0",
             "djangorestframework-simplejwt>=5.3",
         ]
-        # Si ya faltaban módulos, instala los mínimos también
         if missing:
             print("📦 Instalando dependencias mínimas (no hay requirements.txt)...")
             run(pip + ["install"] + base_pkgs)
@@ -104,10 +102,6 @@ def run_manage(py_exe, *args, check=True):
     return run(cmd, cwd=str(BACKEND), check=check)
 
 def open_new_console_windows(title, command, cwd=None):
-    """
-    Abre nueva ventana usando PowerShell Start-Process (Windows).
-    En Unix, lanza en el mismo terminal.
-    """
     if os.name != "nt":
         return subprocess.Popen(command, cwd=cwd)
 
@@ -134,10 +128,9 @@ def open_new_console_windows(title, command, cwd=None):
 def warn_if_not_sqlite(py_exe):
     """
     Advierte si la BD por settings.py no es SQLite (por si olvidaste cambiar DATABASES).
-    No bloquea el arranque.
     """
     code = (
-        "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','backend.settings');"
+        "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','estado_maquinas.settings');"
         "import django; django.setup();"
         "from django.conf import settings;"
         "db = settings.DATABASES.get('default',{});"
@@ -149,33 +142,26 @@ def warn_if_not_sqlite(py_exe):
         if "sqlite3" not in engine:
             print(f"⚠️  Advertencia: la BD activa no es SQLite (ENGINE='{engine}'). Revisa settings.DATABASES.")
     except Exception:
-        # Si falla, no bloqueamos; Django puede configurar DJANGO_SETTINGS_MODULE distinto
         pass
 
 def main():
     os.chdir(ROOT)
     print("🚀 Preparando proyecto (modo SQLite, sin MSSQL)...")
 
-    # 1) Backend: venv + deps (mínimas)
     py = ensure_backend_venv_and_deps()
-
-    # 2) Advertir si la BD no es SQLite (para evitar confusión)
     warn_if_not_sqlite(py)
 
-    # 3) Migraciones
     try:
-        print("🧱 Django: makemigrations (todas las apps)...")
-        run_manage(py, "makemigrations", check=False)  # tolerante si no hay cambios
-        print("🧱 Django: migrate...")
-        run_manage(py, "migrate")
+        print("🧱 Django: makemigrations (todas las apps, sin preguntas)...")
+        run_manage(py, "makemigrations", "--noinput", check=False)
+        print("🧱 Django: migrate (sin preguntas)...")
+        run_manage(py, "migrate", "--noinput")
     except subprocess.CalledProcessError as e:
         print("❌ Error al aplicar migraciones.")
         print(e)
 
-    # 4) Frontend deps
     ok_fe = ensure_frontend_deps()
 
-    # 5) Levantar servicios en ventanas separadas
     print("▶️  Iniciando Django (puerto 8000) en nueva ventana...")
     open_new_console_windows(
         "Django",

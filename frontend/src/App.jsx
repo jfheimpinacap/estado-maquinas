@@ -14,14 +14,21 @@ import BuscarCliente from "./components/BuscarCliente";
 import VerCliente from "./components/VerCliente";
 import EditarCliente from "./components/EditarCliente";
 import UsersAdmin from "./components/users/UsersAdmin";
+import UsersEdit from "./components/users/UsersEdit"; 
 
 import { useAuth } from "./context/AuthContext";
 import LoginPage from "./components/auth/LoginPage";
 import RegisterPage from "./components/auth/RegisterPage";
+import RecoverPage from "./components/auth/RecoverPage";
 
 import "./App.css";
 
-function AppShell({ view, setView, selectedCliente, setSelectedCliente, selectedMaquina, setSelectedMaquina }) {
+function AppShell({
+  view, setView,
+  selectedCliente, setSelectedCliente,
+  selectedMaquina, setSelectedMaquina,
+  selectedUser, setSelectedUser
+}) {
   return (
     <>
       <Sidebar setView={setView} />
@@ -60,7 +67,17 @@ function AppShell({ view, setView, selectedCliente, setSelectedCliente, selected
           />
         )}
 
-        {view === "control-usuarios" && <UsersAdmin />}
+        {view === "control-usuarios" && (
+          <UsersAdmin setView={setView} setSelectedUser={setSelectedUser} />
+        )}
+
+        {view === "editar-usuario" && selectedUser && (
+          <UsersEdit
+            selectedUser={selectedUser}
+            setSelectedUser={setSelectedUser}
+            setView={setView}
+          />
+        )}
       </main>
     </>
   );
@@ -70,23 +87,22 @@ export default function App() {
   const [view, setView] = useState("home");
   const [selectedCliente, setSelectedCliente] = useState(null);
   const [selectedMaquina, setSelectedMaquina] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null); 
 
-  // Tu AuthContext actual parece exponer { auth } con auth.user:
-  const { auth } = useAuth(); // => auth?.user
+  const { auth } = useAuth();
 
   return (
     <div id="root">
       <Routes>
         {!auth?.user ? (
           <>
-            {/* Rutas públicas (no autenticado) */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/recover" element={<RecoverPage />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : (
           <>
-            {/* Rutas privadas (autenticado) */}
             <Route
               path="/"
               element={
@@ -97,6 +113,8 @@ export default function App() {
                   setSelectedCliente={setSelectedCliente}
                   selectedMaquina={selectedMaquina}
                   setSelectedMaquina={setSelectedMaquina}
+                  selectedUser={selectedUser}            
+                  setSelectedUser={setSelectedUser}      
                 />
               }
             />
@@ -109,6 +127,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
