@@ -129,10 +129,15 @@ Ejemplos (ajustar según api/urls.py):
 - Para producción se puede migrar fácilmente a SQL Server u otro motor compatible.
 ---
 📌 Estado actual
+
 ✅ Backend funcionando con Django + DRF + JWT
+
 ✅ Frontend operativo con React + Vite
+
 ✅ Script de instalación automática (start.py) probado en Windows
+
 🔄 En desarrollo: mejoras al panel de control de usuarios y búsqueda avanzada de maquinarias
+
 ---
 👨‍💻 Autor
 Proyecto creado por Franz Heim (INACAP)
