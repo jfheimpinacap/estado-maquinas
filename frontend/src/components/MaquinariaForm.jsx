@@ -1,5 +1,8 @@
+// src/components/MaquinariaForm.jsx
 import { useState } from 'react'
 import { toast } from 'react-toastify'
+import { useAuth } from '../context/AuthContext'
+import { authFetch } from '../lib/api'
 
 const CATEGORIAS = {
   ALTURA: 'equipos_altura',
@@ -21,7 +24,8 @@ export default function MaquinariaForm() {
   const [formCamion, setFormCamion] = useState(initialCamion)
   const [formCarga,  setFormCarga]  = useState(initialCarga)
 
-  const backendURL = import.meta.env.VITE_BACKEND_URL
+  const { auth, backendURL } = useAuth()
+  const token = auth?.access
 
   const limpiarActual = () => {
     if (categoria === CATEGORIAS.ALTURA) setFormAltura(initialAltura)
@@ -32,17 +36,40 @@ export default function MaquinariaForm() {
   const buildPayload = () => {
     if (categoria === CATEGORIAS.ALTURA) {
       const { marca, modelo, serie, altura, descripcion } = formAltura
-      return { categoria, marca, modelo, serie, altura: altura ? Number(altura) : null, descripcion }
+      return {
+        categoria,
+        marca: marca?.trim(),
+        modelo: modelo?.trim(),
+        serie: serie?.trim(),
+        altura: altura ? Number(altura) : null,
+        descripcion: (descripcion || '').trim() || null,
+      }
     }
     if (categoria === CATEGORIAS.CAMIONES) {
       const { marca, modelo, anio, tonelaje, descripcion } = formCamion
-      return { categoria, marca, modelo, anio: anio ? Number(anio) : null, tonelaje: tonelaje ? Number(tonelaje) : null, descripcion }
+      return {
+        categoria,
+        marca: marca?.trim(),
+        modelo: modelo?.trim(),
+        serie: null, // camión no usa serie en este formulario
+        anio: anio ? Number(anio) : null,
+        tonelaje: tonelaje ? Number(tonelaje) : null,
+        descripcion: (descripcion || '').trim() || null,
+      }
     }
     const { marca, modelo, carga, descripcion } = formCarga
-    return { categoria, marca, modelo, carga: carga ? Number(carga) : null, descripcion }
+    return {
+      categoria,
+      marca: marca?.trim(),
+      modelo: modelo?.trim(),
+      serie: null,
+      carga: carga ? Number(carga) : null,
+      descripcion: (descripcion || '').trim() || null,
+    }
   }
 
   const validar = () => {
+    if (!token) return 'No estás autenticado.'
     if (!categoria) return 'Selecciona una categoría.'
     if (categoria === CATEGORIAS.ALTURA) {
       const { marca, modelo, serie, altura } = formAltura
@@ -74,15 +101,18 @@ export default function MaquinariaForm() {
     const payload = buildPayload()
 
     try {
-      const res = await fetch(`${backendURL}/maquinarias`, {
+      const res = await authFetch(`${backendURL}/maquinarias`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        token,           // <<<<<< AGREGA AUTH
+        json: payload,   // pone Content-Type: application/json automáticamente
       })
+
       if (res.ok) {
         const data = await res.json().catch(() => ({}))
         toast.success(`✅ Maquinaria creada${data?.id ? ` (ID ${data.id})` : ''}`)
         limpiarActual()
+      } else if (res.status === 401) {
+        toast.error('❌ No autorizado. Inicia sesión nuevamente.')
       } else {
         const text = await res.text().catch(() => '')
         toast.error(`❌ Error al crear la maquinaria${text ? `: ${text}` : ''}`)
@@ -182,7 +212,7 @@ export default function MaquinariaForm() {
           )}
 
           <div className="form-actions-center">
-            <button type="submit" className="btn-cat">Crear maquina</button>
+            <button type="submit" className="btn-cat">Crear máquina</button>
           </div>
         </form>
       )}

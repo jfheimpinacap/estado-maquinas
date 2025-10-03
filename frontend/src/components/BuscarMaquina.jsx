@@ -1,5 +1,5 @@
 // src/components/BuscarMaquina.jsx
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useAuth } from "../context/AuthContext"
 import { authFetch } from "../lib/api"
 import { toast } from "react-toastify"
@@ -9,44 +9,28 @@ export default function BuscarMaquina({ setView, setSelectedMaquina }) {
   const [resultados, setResultados] = useState([])
   const { auth, backendURL } = useAuth()
 
-  // Restaurar último listado
-  useEffect(() => {
-    const q = localStorage.getItem("buscarmaq:lastQuery") || ""
-    const raw = localStorage.getItem("buscarmaq:lastResults")
-    if (raw) {
-      setQuery(q)
-      try { setResultados(JSON.parse(raw)) } catch {}
-    }
-  }, [])
-
   const handleBuscar = async () => {
     const q = query.trim()
     if (!q) {
       setResultados([])
-      localStorage.removeItem("buscarmaq:lastQuery")
-      localStorage.removeItem("buscarmaq:lastResults")
       return
     }
 
     try {
-      // Backend: admite ?query= para marca/modelo contains
-      // y si el usuario escribe una serie, el backend debe preferir match exacto de serie
+      // Backend: admite ?query= (marca/modelo contains) y prioriza serie exacta
       const url = `${backendURL}/maquinarias?query=${encodeURIComponent(q)}`
       const res = await authFetch(url, { token: auth.access })
       if (!res.ok) throw new Error("Error al buscar maquinarias")
       let data = await res.json()
       if (!Array.isArray(data)) data = []
 
-      // Si el usuario probablemente buscó una serie (sin espacios) aplicamos exact en el front como refuerzo
+      // Refuerzo en front para serie exacta si el término no tiene espacios
       if (data.length > 0 && !q.includes(" ")) {
         const exactSerie = data.filter(m => String(m.serie || "").toLowerCase() === q.toLowerCase())
         if (exactSerie.length > 0) data = exactSerie
       }
 
       setResultados(data)
-      localStorage.setItem("buscarmaq:lastQuery", q)
-      localStorage.setItem("buscarmaq:lastResults", JSON.stringify(data))
-
       if (data.length === 0) toast.info("No se encontró ninguna máquina con ese término.")
     } catch (error) {
       console.error("❌ Error en la búsqueda:", error)
@@ -65,15 +49,11 @@ export default function BuscarMaquina({ setView, setSelectedMaquina }) {
   const handleLimpiar = () => {
     setQuery("")
     setResultados([])
-    localStorage.removeItem("buscarmaq:lastQuery")
-    localStorage.removeItem("buscarmaq:lastResults")
   }
 
-  const getObra = (m) => {
-    if (m.obra) return m.obra
-    if (m.ubicacion) return m.ubicacion
-    if (m.arrendada || m.en_obra) return m.obra_actual || "Obra"
-    return "Bodega"
+  const getUbicacion = (m) => {
+    // El serializer ya entrega `obra` con nombre o "Bodega"
+    return m.obra || "Bodega"
   }
 
   return (
@@ -106,8 +86,8 @@ export default function BuscarMaquina({ setView, setSelectedMaquina }) {
                 <th>Marca</th>
                 <th>Modelo</th>
                 <th>Serie</th>
-                <th>Combustible</th>
-                <th>Obra</th>
+                <th>Descripción</th>
+                <th>Ubicación máquina</th>
                 <th>Acción</th>
               </tr>
             </thead>
@@ -124,8 +104,8 @@ export default function BuscarMaquina({ setView, setSelectedMaquina }) {
                     <td>{m.marca || "—"}</td>
                     <td>{m.modelo || "—"}</td>
                     <td>{m.serie || "—"}</td>
-                    <td>{m.combustible ? (m.combustible === 'diesel' ? 'Diésel' : 'Eléctrico') : "—"}</td>
-                    <td>{getObra(m)}</td>
+                    <td>{m.descripcion || "—"}</td>
+                    <td>{getUbicacion(m)}</td>
                     <td>
                       <button
                         className="btn-sm-orange btn-sm-orange--short"

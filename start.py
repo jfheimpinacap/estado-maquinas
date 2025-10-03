@@ -1,4 +1,4 @@
-# start.py (SQLite-ready + auto Node/NVM/npm)
+# start.py (SQLite-ready + auto Node/NVM/npm) - versión robusta Windows
 import os
 import sys
 import subprocess
@@ -22,7 +22,7 @@ CANDIDATE_VENVS = [
     ROOT / "venv",
 ]
 
-NODE_VERSION = os.environ.get("APP_NODE_VERSION", "20.12.2")  # fija una LTS conocida
+NODE_VERSION = os.environ.get("APP_NODE_VERSION", "20.12.2")  # LTS recomendada
 
 # ------------- utilidades -------------
 def which_venv():
@@ -33,6 +33,11 @@ def which_venv():
     return None
 
 def has_command(cmd):
+    # en Windows, npm suele ser npm.cmd
+    if os.name == "nt" and cmd == "npm":
+        return shutil.which("npm") is not None or shutil.which("npm.cmd") is not None
+    if os.name == "nt" and cmd == "node":
+        return shutil.which("node") is not None or shutil.which("node.exe") is not None
     return shutil.which(cmd) is not None
 
 def run(cmd, cwd=None, env=None, check=True, capture=False, shell=False):
@@ -42,10 +47,6 @@ def run(cmd, cwd=None, env=None, check=True, capture=False, shell=False):
         stderr=(subprocess.PIPE if capture else None),
         text=True
     )
-
-def run_ps(script):
-    """Ejecuta un comando PowerShell inline (Windows)."""
-    return run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
 
 def ensure_backend_venv_and_deps():
     venv_dir = which_venv()
@@ -133,18 +134,55 @@ def warn_if_not_sqlite(py_exe):
     except Exception:
         pass
 
-# ------------- Node / NVM helpers -------------
+# ------------- Node / NPM helpers -------------
+def refresh_windows_nvm_env():
+    """
+    Asegura en esta sesión que PATH contenga NVM y Node activo.
+    Útil tras 'nvm install/use' sin abrir consola nueva.
+    """
+    if os.name != "nt":
+        return
+    nvm_home = os.environ.get("NVM_HOME") or r"C:\Program Files\nvm"
+    nvm_link = os.environ.get("NVM_SYMLINK") or r"C:\Program Files\nodejs"
+    node_dir = Path(nvm_home) / f"v{NODE_VERSION}"
+    candidates = [str(nvm_home), str(nvm_link), str(node_dir)]
+    current_path = os.environ.get("PATH", "")
+    parts = current_path.split(os.pathsep)
+    changed = False
+    for p in candidates:
+        if p and p not in parts and Path(p).exists():
+            parts.insert(0, p)
+            changed = True
+    if changed:
+        os.environ["PATH"] = os.pathsep.join(parts)
+
 def node_version():
-    if not has_command("node"):
+    try:
+        exe = "node.exe" if os.name == "nt" else "node"
+        # prefer exact path if which returns
+        for cand in ("node", exe):
+            path = shutil.which(cand)
+            if path:
+                p = run([path, "-v"], capture=True, check=False)
+                if p.returncode == 0:
+                    return (p.stdout or "").strip()
+    except Exception:
         return None
-    p = run(["node", "-v"], capture=True, check=False)
-    return (p.stdout or "").strip() if p.returncode == 0 else None
+    return None
 
 def npm_version():
-    if not has_command("npm"):
+    try:
+        # En Windows npm suele ser npm.cmd
+        cands = ["npm", "npm.cmd"] if os.name == "nt" else ["npm"]
+        for cand in cands:
+            path = shutil.which(cand)
+            if path:
+                p = run([path, "-v"], capture=True, check=False)
+                if p.returncode == 0:
+                    return (p.stdout or "").strip()
+    except Exception:
         return None
-    p = run(["npm", "-v"], capture=True, check=False)
-    return (p.stdout or "").strip() if p.returncode == 0 else None
+    return None
 
 def ensure_node_windows():
     """Instala nvm-windows y Node si no están. Requiere admin y conexión a Internet."""
@@ -155,7 +193,6 @@ def ensure_node_windows():
     if not has_command("nvm"):
         print("🧰 Instalando nvm-windows (requiere permisos de administrador)...")
         try:
-            # Obtener release más reciente
             with urllib.request.urlopen("https://api.github.com/repos/coreybutler/nvm-windows/releases/latest", timeout=30) as r:
                 data = json.loads(r.read().decode("utf-8"))
             asset = None
@@ -165,34 +202,29 @@ def ensure_node_windows():
                     break
             if not asset:
                 raise RuntimeError("No se encontró el instalador de nvm-setup.exe en la release.")
-
-            # Descargar a temp
-            fd, temp_path = tempfile.mkstemp(suffix="-nvm-setup.exe")
-            os.close(fd)
+            fd, temp_path = tempfile.mkstemp(suffix="-nvm-setup.exe"); os.close(fd)
             urllib.request.urlretrieve(asset, temp_path)
-
-            # Ejecutar instalador silencioso (NSIS/Inno: probamos /S)
-            # Si tu entorno requiere /VERYSILENT /SUPPRESSMSGBOXES ajusta aquí.
             print("📥 Ejecutando instalador nvm-setup.exe (silencioso)...")
             run([temp_path, "/S"], check=False)
-            time.sleep(3)  # darle tiempo al instalador
+            time.sleep(3)
         except Exception as e:
             print(f"❌ No se pudo instalar nvm automáticamente: {e}")
             print("   Descarga manual: https://github.com/coreybutler/nvm-windows/releases/latest")
             return False
 
-    # 2) Asegurar Node instalable por nvm
+    # 2) Instalar y activar Node con nvm
     try:
-        # Nueva consola puede requerirse para que PATH se actualice;
-        # aquí intentamos ejecutar nvm en el mismo proceso:
         run(["nvm", "install", NODE_VERSION], check=False)
         run(["nvm", "use", NODE_VERSION], check=False)
     except Exception as e:
-        print(f"⚠️  No se pudo usar nvm para instalar Node: {e}")
+        print(f"⚠️  No se pudo usar nvm para instalar/activar Node: {e}")
 
-    ok = has_command("node") and has_command("npm")
+    # 3) Inyectar rutas de NVM en PATH de ESTA sesión
+    refresh_windows_nvm_env()
+
+    ok = has_command("node") and (has_command("npm"))
     if not ok:
-        print("⚠️  Node/npm aún no disponibles en esta sesión. Abre una nueva consola o reinicia el script.")
+        print("⚠️  Node/npm podrían requerir una nueva consola para refrescar PATH.")
     return ok
 
 def ensure_node_unix():
@@ -200,18 +232,15 @@ def ensure_node_unix():
     if has_command("npm") and has_command("node"):
         return True
 
-    # Instalar nvm si falta
     if not os.path.exists(str(Path.home() / ".nvm")) and not has_command("nvm"):
         print("🧰 Instalando nvm (macOS/Linux)...")
         try:
-            # Ejecuta instalador oficial
             run(["bash", "-lc", "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"], check=True)
         except Exception as e:
             print(f"❌ No se pudo instalar nvm automáticamente: {e}")
             print("   Instala manualmente: https://github.com/nvm-sh/nvm")
             return False
 
-    # Cargar nvm y usarlo para instalar Node
     try:
         run(["bash", "-lc", f"source ~/.nvm/nvm.sh && nvm install {NODE_VERSION} && nvm alias default {NODE_VERSION} && nvm use {NODE_VERSION}"], check=False)
     except Exception as e:
@@ -226,7 +255,7 @@ def ensure_node_tooling():
     """Garantiza npm/node (con nvm) en el sistema. Devuelve True si quedó listo."""
     print("🔎 Verificando Node/npm...")
     if has_command("npm") and has_command("node"):
-        print(f"✅ Node {node_version()} / npm {npm_version()}")
+        print(f"✅ Node {node_version() or 'N/A'} / npm {npm_version() or 'N/A'}")
         return True
 
     system = platform.system().lower()
@@ -235,9 +264,9 @@ def ensure_node_tooling():
     else:
         ok = ensure_node_unix()
 
-    if ok:
-        print(f"✅ Node {node_version()} / npm {npm_version()}")
-    else:
+    # Reintentar lectura de versión sin romper si falla
+    print(f"✅ Node {node_version() or 'N/A'} / npm {npm_version() or 'N/A'}")
+    if not ok:
         print("❌ No fue posible preparar Node/npm automáticamente.")
     return ok
 
@@ -254,10 +283,15 @@ def ensure_frontend_deps():
     if not (FRONTEND / "node_modules").exists():
         print("📦 Instalando dependencias de frontend (npm install)...")
         try:
-            run(["npm", "install"], cwd=str(FRONTEND))
+            # usar ejecutable real que encuentre el which
+            npm_exec = shutil.which("npm") or shutil.which("npm.cmd") or "npm"
+            run([npm_exec, "install"], cwd=str(FRONTEND))
         except subprocess.CalledProcessError as e:
             print("❌ Falló 'npm install'. Revisa tu conexión o permisos.")
             print(e)
+            return False
+        except FileNotFoundError:
+            print("❌ npm no se encontró en PATH tras la instalación. Abre una consola nueva y ejecuta 'npm install'.")
             return False
     return True
 
@@ -292,9 +326,10 @@ def main():
 
     if ok_fe:
         print("▶️  Iniciando Vite (puerto 5173) en nueva ventana...")
+        npm_exec = shutil.which("npm") or shutil.which("npm.cmd") or "npm"
         open_new_console_windows(
             "Vite",
-            ["npm", "run", "dev"],
+            [npm_exec, "run", "dev"],
             cwd=str(FRONTEND)
         )
         try:
@@ -319,4 +354,5 @@ if __name__ == "__main__":
         sys.exit(e.returncode)
     except KeyboardInterrupt:
         print("\n⏹️  Interrumpido por el usuario.")
+
 
