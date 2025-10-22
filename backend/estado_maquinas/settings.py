@@ -14,8 +14,11 @@ ALLOWED_HOSTS = ['*']
 APPEND_SLASH = False
 
 INSTALLED_APPS = [
+    # Admin 
+    #'api.apps.AppWebAdminConfig',  
+
     # Django
-    'django.contrib.admin',
+    'django.contrib.admin', 
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -36,7 +39,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # Si no usas autenticación por sesión, no necesitas CSRF en el API
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -48,7 +50,7 @@ ROOT_URLCONF = 'estado_maquinas.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [ BASE_DIR / "templates" ],
         'APP_DIRS': True,
         'OPTIONS': { 'context_processors': [
             'django.template.context_processors.debug',
@@ -101,6 +103,11 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 # Asegura métodos y headers usados por fetch y JWT

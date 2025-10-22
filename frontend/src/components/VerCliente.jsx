@@ -1,44 +1,80 @@
-// src/components/VerCliente.jsx
 export default function VerCliente({ cliente, setView, setSelectedCliente }) {
-  if (!cliente) return (
-    <section className="form-section form-section--compact">
-      <h1>Datos del Cliente</h1>
-      <p className="text-gray-600 text-sm">No se ha seleccionado cliente.</p>
-    </section>
-  );
+  if (!cliente) {
+    return (
+      <AdminLayout
+        setView={setView}
+        title="Datos del cliente"
+        breadcrumbs={<>Clientes / Ficha</>}
+      >
+        <div className="fieldset">
+          <p className="help-text">No se ha seleccionado cliente.</p>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
-    <section className="form-section form-section--compact">
-      <h1>Datos del Cliente</h1>
+    <AdminLayout
+      setView={setView}
+      title="Datos del cliente"
+      breadcrumbs={<>Clientes / Ficha</>}
+      actions={
+        <>
+          <button
+            className="btn btn-ghost"
+            onClick={() => { setSelectedCliente(cliente); setView("editar-cliente"); }}
+          >
+            Editar
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setView("ver-movimientos")}
+          >
+            Ver movimientos
+          </button>
+        </>
+      }
+    >
+      <div className="fieldset">
+        <div className="legend">Identificación</div>
 
-      <div className="space-y-2">
-        <div><strong>Razón Social:</strong> {cliente.razon_social || "—"}</div>
-        <div><strong>RUT:</strong> {cliente.rut || "—"}</div>
-        <div><strong>Dirección:</strong> {cliente.direccion || "—"}</div>
-        <div><strong>Teléfono:</strong> {cliente.telefono || "—"}</div>
-        <div><strong>Forma de Pago:</strong> {cliente.forma_pago || "—"}</div>
+        <div className="form-row">
+          <div className="label">Razón Social</div>
+          <div className="control">{cliente.razon_social || "—"}</div>
+        </div>
+
+        <div className="form-row">
+          <div className="label">RUT</div>
+          <div className="control">{cliente.rut || "—"}</div>
+        </div>
       </div>
 
-      <div className="form-actions" style={{ gap: ".5rem", marginTop: "1rem" }}>
-        <button
-          className="btn-sm-orange"
-          onClick={() => {
-            setSelectedCliente(cliente);     // deja seleccionado global
-            setView('editar-cliente');       // navega directo al formulario de edición
-          }}
-        >
-          Editar datos
-        </button>
+      <div className="fieldset">
+        <div className="legend">Contacto</div>
 
-        <button
-          className="btn-form btn-mini btn-form--gray"
-          onClick={() => setView("ver-movimientos")}
-        >
-          Ver movimientos
-        </button>
+        <div className="form-row">
+          <div className="label">Dirección</div>
+          <div className="control">{cliente.direccion || "—"}</div>
+        </div>
+
+        <div className="form-row">
+          <div className="label">Teléfono</div>
+          <div className="control">{cliente.telefono || "—"}</div>
+        </div>
+
+        <div className="form-row">
+          <div className="label">Correo electrónico</div>
+          <div className="control">{cliente.correo_electronico || "—"}</div>
+        </div>
+
+        <div className="form-row">
+          <div className="label">Forma de pago</div>
+          <div className="control">{cliente.forma_pago || "—"}</div>
+        </div>
       </div>
-    </section>
+    </AdminLayout>
   );
 }
+
 
 

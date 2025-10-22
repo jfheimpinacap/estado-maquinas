@@ -136,10 +136,6 @@ def warn_if_not_sqlite(py_exe):
 
 # ------------- Node / NPM helpers -------------
 def refresh_windows_nvm_env():
-    """
-    Asegura en esta sesión que PATH contenga NVM y Node activo.
-    Útil tras 'nvm install/use' sin abrir consola nueva.
-    """
     if os.name != "nt":
         return
     nvm_home = os.environ.get("NVM_HOME") or r"C:\Program Files\nvm"
@@ -159,7 +155,6 @@ def refresh_windows_nvm_env():
 def node_version():
     try:
         exe = "node.exe" if os.name == "nt" else "node"
-        # prefer exact path if which returns
         for cand in ("node", exe):
             path = shutil.which(cand)
             if path:
@@ -172,7 +167,6 @@ def node_version():
 
 def npm_version():
     try:
-        # En Windows npm suele ser npm.cmd
         cands = ["npm", "npm.cmd"] if os.name == "nt" else ["npm"]
         for cand in cands:
             path = shutil.which(cand)
@@ -185,11 +179,9 @@ def npm_version():
     return None
 
 def ensure_node_windows():
-    """Instala nvm-windows y Node si no están. Requiere admin y conexión a Internet."""
     if has_command("npm") and has_command("node"):
         return True
 
-    # 1) Instalar NVM para Windows si falta
     if not has_command("nvm"):
         print("🧰 Instalando nvm-windows (requiere permisos de administrador)...")
         try:
@@ -212,14 +204,12 @@ def ensure_node_windows():
             print("   Descarga manual: https://github.com/coreybutler/nvm-windows/releases/latest")
             return False
 
-    # 2) Instalar y activar Node con nvm
     try:
         run(["nvm", "install", NODE_VERSION], check=False)
         run(["nvm", "use", NODE_VERSION], check=False)
     except Exception as e:
         print(f"⚠️  No se pudo usar nvm para instalar/activar Node: {e}")
 
-    # 3) Inyectar rutas de NVM en PATH de ESTA sesión
     refresh_windows_nvm_env()
 
     ok = has_command("node") and (has_command("npm"))
@@ -228,7 +218,6 @@ def ensure_node_windows():
     return ok
 
 def ensure_node_unix():
-    """Instala nvm (nvm-sh) y Node en macOS/Linux si faltan."""
     if has_command("npm") and has_command("node"):
         return True
 
@@ -252,7 +241,6 @@ def ensure_node_unix():
     return ok
 
 def ensure_node_tooling():
-    """Garantiza npm/node (con nvm) en el sistema. Devuelve True si quedó listo."""
     print("🔎 Verificando Node/npm...")
     if has_command("npm") and has_command("node"):
         print(f"✅ Node {node_version() or 'N/A'} / npm {npm_version() or 'N/A'}")
@@ -264,7 +252,6 @@ def ensure_node_tooling():
     else:
         ok = ensure_node_unix()
 
-    # Reintentar lectura de versión sin romper si falla
     print(f"✅ Node {node_version() or 'N/A'} / npm {npm_version() or 'N/A'}")
     if not ok:
         print("❌ No fue posible preparar Node/npm automáticamente.")
@@ -275,7 +262,6 @@ def ensure_frontend_deps():
         print("ℹ️  No se encontró frontend/package.json. Se omitirá el frontend.")
         return False
 
-    # Asegurar node/npm
     if not ensure_node_tooling():
         print("❌ npm no está disponible. Instala Node.js/NVM manualmente para levantar el frontend.")
         return False
@@ -283,7 +269,6 @@ def ensure_frontend_deps():
     if not (FRONTEND / "node_modules").exists():
         print("📦 Instalando dependencias de frontend (npm install)...")
         try:
-            # usar ejecutable real que encuentre el which
             npm_exec = shutil.which("npm") or shutil.which("npm.cmd") or "npm"
             run([npm_exec, "install"], cwd=str(FRONTEND))
         except subprocess.CalledProcessError as e:
@@ -302,7 +287,6 @@ def main():
 
     # Backend
     py = ensure_backend_venv_and_deps()
-    warn_if_not_sqlite(py)
 
     try:
         print("🧱 Django: makemigrations (todas las apps, sin preguntas)...")
@@ -313,7 +297,7 @@ def main():
         print("❌ Error al aplicar migraciones.")
         print(e)
 
-    # Frontend (instalar Node/npm si faltan + npm i)
+    # Frontend
     ok_fe = ensure_frontend_deps()
 
     # Lanzar servidores
@@ -332,10 +316,22 @@ def main():
             [npm_exec, "run", "dev"],
             cwd=str(FRONTEND)
         )
-        try:
-            webbrowser.open("http://localhost:5173", new=2)
-        except Exception:
-            pass
+
+    # Abrir navegador:
+    # 1) Si definiste APP_OPEN_URL, se respeta (por ejemplo http://localhost:5173/login).
+    # 2) Si hay frontend, abrir /login del frontend.
+    # 3) Si no hay frontend, abrir login del admin de Django.
+    open_url = os.environ.get("APP_OPEN_URL")
+    if not open_url:
+        if ok_fe:
+            open_url = "http://localhost:5173/login"
+        else:
+            open_url = "http://127.0.0.1:8000/admin/login/"
+
+    try:
+        webbrowser.open(open_url, new=2)
+    except Exception:
+        pass
 
     print("\n✅ Todo lanzado.")
     print("   • Backend (Django): http://127.0.0.1:8000")
@@ -343,6 +339,7 @@ def main():
         print("   • Frontend (Vite): http://localhost:5173")
     else:
         print("   • Frontend: dependencias no instaladas (ver mensajes arriba)")
+    print(f"   • Página inicial: {open_url}")
     print("ℹ️ Cierra las consolas abiertas para detener servicios.\n")
 
 if __name__ == "__main__":
@@ -354,5 +351,6 @@ if __name__ == "__main__":
         sys.exit(e.returncode)
     except KeyboardInterrupt:
         print("\n⏹️  Interrumpido por el usuario.")
+
 
 

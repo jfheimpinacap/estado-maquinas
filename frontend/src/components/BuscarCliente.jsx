@@ -1,127 +1,149 @@
 // src/components/BuscarCliente.jsx
-import { useEffect, useState } from "react"
-import { useAuth } from "../context/AuthContext"
-import { authFetch } from "../lib/api"
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { authFetch } from "../lib/api";
 
 export default function BuscarCliente({ setView, setSelectedCliente }) {
-  const [query, setQuery] = useState("")
-  const [resultados, setResultados] = useState([])
-  const { auth, backendURL } = useAuth()
+  const [query, setQuery] = useState("");
+  const [resultados, setResultados] = useState([]);
+  const { auth, backendURL } = useAuth();
 
-  // Restaura último listado al volver desde EditarCliente (localStorage)
   useEffect(() => {
-    const q = localStorage.getItem("buscar:lastQuery") || ""
-    const raw = localStorage.getItem("buscar:lastResults")
+    const q = localStorage.getItem("buscar:lastQuery") || "";
+    const raw = localStorage.getItem("buscar:lastResults");
     if (raw) {
-      setQuery(q)
-      try { setResultados(JSON.parse(raw)) } catch {}
+      setQuery(q);
+      try { setResultados(JSON.parse(raw)); } catch {}
     }
-  }, [])
+  }, []);
 
   const handleBuscar = async () => {
     try {
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(query)}`
-      const res = await authFetch(url, { token: auth.access })
-      if (!res.ok) throw new Error("Error al buscar clientes")
-      const data = await res.json()
-      setResultados(data)
-      // guarda para poder “volver al listado”
-      localStorage.setItem("buscar:lastQuery", query)
-      localStorage.setItem("buscar:lastResults", JSON.stringify(data))
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(query)}`;
+      const res = await authFetch(url, { token: auth.access });
+      if (!res.ok) throw new Error("Error al buscar clientes");
+      const data = await res.json();
+      setResultados(data);
+      localStorage.setItem("buscar:lastQuery", query);
+      localStorage.setItem("buscar:lastResults", JSON.stringify(data));
     } catch (error) {
-      console.error("❌ Error en la búsqueda:", error)
-      setResultados([])
+      console.error("❌ Error en la búsqueda:", error);
+      setResultados([]);
     }
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      handleBuscar()
-    }
-  }
-
+  };
   const handleLimpiar = () => {
-    setQuery("")
-    setResultados([])
-    localStorage.removeItem("buscar:lastQuery")
-    localStorage.removeItem("buscar:lastResults")
-  }
+    setQuery("");
+    setResultados([]);
+    localStorage.removeItem("buscar:lastQuery");
+    localStorage.removeItem("buscar:lastResults");
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Tarjeta angosta de búsqueda */}
-      <section className="form-section form-section--compact">
-        <h1>Buscar Cliente</h1>
-
-        <div className="flex items-center gap-2 mb-4">
-          <input
-            type="text"
-            placeholder="Buscar por Razón Social o RUT"
-            className="form-input w-64"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            style={{ background: "rgb(224, 251, 252)", color: "#000" }}
-          />
-          <button type="button" onClick={handleBuscar} className="btn-inline">Buscar</button>
-          <button type="button" onClick={handleLimpiar} className="btn-inline btn-inline--gray">Limpiar</button>
+    <>
+      {/* Fieldset de parámetros */}
+      <div className="admin-card" style={{marginBottom: 14}}>
+        <div className="fieldset">
+          <div className="legend">Parámetros</div>
+          <div className="form-row">
+            <div className="label">Término</div>
+            <div className="control">
+              <input
+                className="input"
+                placeholder="Razón social o RUT"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
+              />
+              <small className="help-text">Presiona Enter para buscar rápidamente.</small>
+            </div>
+          </div>
+          <div className="form-row" style={{gridTemplateColumns:"14rem 1fr"}}>
+            <div className="label" />
+            <div className="control" style={{display:"flex", gap:8}}>
+              <button className="btn btn-primary" onClick={handleBuscar}>Buscar</button>
+              <button className="btn btn-ghost" onClick={handleLimpiar}>Limpiar</button>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
 
-      {/* Tarjeta ancha de resultados */}
-      <section className="panel-section panel-section--compact">
-        <div className="table-wrap">
-          <table className="w-full text-left">
-            <thead>
-              <tr>
-                <th>Razón Social</th>
-                <th>RUT</th>
-                <th>Dirección</th>
-                <th>Correo</th>
-                <th>Teléfono</th>
-                <th>Forma de Pago</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resultados.length === 0 ? (
-                <tr>
-                  <td className="py-4 text-center text-gray-500" colSpan={6}>
-                    Ingresa un término de búsqueda o no hay resultados.
-                  </td>
-                </tr>
-              ) : (
-                resultados.map((cliente) => (
-                  <tr key={cliente.id}>
-                    <td>{cliente.razon_social}</td>
-                    <td>{cliente.rut}</td>
-                    <td>{cliente.direccion || "—"}</td>
-                    <td>{cliente.correo_electronico || "—"}</td>
-                    <td>{cliente.telefono || "—"}</td>
-                    <td>{cliente.forma_pago || "—"}</td>
-                    <td>
-                      <button
-                        className="btn-sm-orange btn-sm-orange--short"
-                        onClick={() => {
-                          // muestra ficha “Datos del Cliente”; desde ahí se pulsa “Editar datos”
-                          setSelectedCliente(cliente)
-                          setView("ver-cliente")
-                        }}
-                      >
-                        Ver cliente
-                      </button>
-                    </td>
+      {/* Resultados + Filtros (grid como Django) */}
+      <div className="main-grid">
+        <div>
+          <div className="admin-card">
+            <div className="fieldset">
+              <div className="legend">Resultados</div>
+
+              <table className="dja-table">
+                <thead>
+                  <tr>
+                    <th>Razón Social</th>
+                    <th>RUT</th>
+                    <th>Dirección</th>
+                    <th>Correo</th>
+                    <th>Teléfono</th>
+                    <th>Forma de Pago</th>
+                    <th>Acciones</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {resultados.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{padding:"14px", textAlign:"center", color:"var(--muted)"}}>
+                        Ingresa un término de búsqueda o no hay resultados.
+                      </td>
+                    </tr>
+                  ) : resultados.map((c) => (
+                    <tr key={c.id}>
+                      <td>{c.razon_social}</td>
+                      <td>{c.rut}</td>
+                      <td>{c.direccion || "—"}</td>
+                      <td>{c.correo_electronico || "—"}</td>
+                      <td>{c.telefono || "—"}</td>
+                      <td>{c.forma_pago || "—"}</td>
+                      <td>
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => { setSelectedCliente(c); setView("ver-cliente"); }}
+                        >
+                          Ver cliente
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </section>
-    </div>
-  )
+
+        {/* Filtros a la derecha (placeholder funcional) */}
+        <aside className="admin-filter">
+          <div className="admin-filter__title">FILTRO</div>
+          <div style={{padding:8}}>
+            <details open>
+              <summary style={{cursor:"pointer", fontWeight:800}}>Mostrar recuentos</summary>
+              <div className="mt-1 text-muted">—</div>
+            </details>
+
+            <details className="mt-2" open>
+              <summary style={{cursor:"pointer", fontWeight:800}}>Por forma de pago</summary>
+              <ul style={{marginTop:6, paddingLeft:16, lineHeight:1.8}}>
+                <li><button className="topbar__btn" onClick={()=>alert("Filtro: Todo")}>Todo</button></li>
+                <li><button className="topbar__btn" onClick={()=>alert("Pago a 15 días")}>Pago a 15 días</button></li>
+                <li><button className="topbar__btn" onClick={()=>alert("Pago a 30 días")}>Pago a 30 días</button></li>
+                <li><button className="topbar__btn" onClick={()=>alert("Pago contado")}>Pago contado</button></li>
+              </ul>
+            </details>
+          </div>
+        </aside>
+      </div>
+    </>
+  );
 }
+
+
+
 
 
 

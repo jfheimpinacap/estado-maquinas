@@ -13,13 +13,13 @@ function formatRutLive(value) {
   return dv ? `${cuerpoFormateado}-${dv}` : cuerpoFormateado;
 }
 
-export default function ClientesForm() {
+export default function ClientesForm({ setView }) {
   const [nuevoCliente, setNuevoCliente] = useState({
     razon_social: "",
     rut: "",
     direccion: "",
     telefono: "",
-    correo_electronico: "",   // <-- NUEVO
+    correo_electronico: "",
     forma_pago: "",
   });
 
@@ -36,9 +36,7 @@ export default function ClientesForm() {
       const res = await authFetch(`${backendURL}/clientes`, {
         method: "POST",
         token: auth?.access,
-        json: {
-          ...nuevoCliente,
-        },
+        json: { ...nuevoCliente },
       });
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
@@ -51,7 +49,7 @@ export default function ClientesForm() {
         rut: "",
         direccion: "",
         telefono: "",
-        correo_electronico: "", // <-- reset
+        correo_electronico: "",
         forma_pago: "",
       });
     } catch (err) {
@@ -60,82 +58,120 @@ export default function ClientesForm() {
     }
   };
 
+  const actions = (
+    <>
+      <button className="btn btn-primary" type="submit" form="cliente-create-form">
+        Guardar
+      </button>
+      <button className="btn btn-ghost" onClick={() => setView?.("listar-clientes")}>
+        Cancelar
+      </button>
+    </>
+  );
+
   return (
-    <section className="form-section form-section--compact">
-      <h1>Crear Cliente</h1>
+    <AdminLayout
+      setView={setView}
+      title="Añadir cliente"
+      breadcrumbs={
+        <>
+          <a href="#" onClick={(e)=>{ e.preventDefault(); setView?.("listar-clientes"); }}>Clientes</a> / Añadir
+        </>
+      }
+      actions={actions}
+    >
+      <form id="cliente-create-form" onSubmit={handleSubmit}>
+        <div className="fieldset">
+          <div className="legend">Datos principales</div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="stack-md">
-          <input
-            className="form-input w-72"
-            placeholder="Razón Social"
-            value={nuevoCliente.razon_social}
-            onChange={(e) =>
-              setNuevoCliente({ ...nuevoCliente, razon_social: e.target.value })
-            }
-            required
-          />
+          <div className="form-row">
+            <div className="label">Razón social</div>
+            <div className="control">
+              <input
+                className="input"
+                value={nuevoCliente.razon_social}
+                onChange={(e)=>setNuevoCliente(s=>({...s, razon_social: e.target.value}))}
+                required
+              />
+              <div className="help-text">Nombre legal del cliente.</div>
+            </div>
+          </div>
 
-          <input
-            className="form-input w-72"
-            placeholder="RUT (xx.xxx.xxx-x)"
-            inputMode="text"
-            maxLength={12}
-            value={nuevoCliente.rut}
-            onChange={handleRutChange}
-            required
-          />
-
-          <input
-            className="form-input w-72"
-            placeholder="Dirección"
-            value={nuevoCliente.direccion}
-            onChange={(e) =>
-              setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })
-            }
-          />
-
-          <input
-            className="form-input w-72"
-            placeholder="Teléfono"
-            inputMode="tel"
-            value={nuevoCliente.telefono}
-            onChange={(e) =>
-              setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })
-            }
-          />
-
-          <input
-            className="form-input w-72"
-            type="email"
-            placeholder="Correo electrónico"
-            value={nuevoCliente.correo_electronico}
-            onChange={(e) =>
-              setNuevoCliente({ ...nuevoCliente, correo_electronico: e.target.value })
-            }
-          />
-
-          <select
-            className="form-input w-72"
-            value={nuevoCliente.forma_pago}
-            onChange={(e) =>
-              setNuevoCliente({ ...nuevoCliente, forma_pago: e.target.value })
-            }
-          >
-            <option value="">Seleccione Forma de Pago</option>
-            <option value="Pago a 15 días">Pago a 15 días</option>
-            <option value="Pago a 30 días">Pago a 30 días</option>
-            <option value="Pago contado">Pago contado</option>
-          </select>
+          <div className="form-row">
+            <div className="label">RUT</div>
+            <div className="control">
+              <input
+                className="input"
+                placeholder="xx.xxx.xxx-x"
+                maxLength={12}
+                value={nuevoCliente.rut}
+                onChange={handleRutChange}
+                required
+              />
+              <div className="help-text">Incluye dígito verificador.</div>
+            </div>
+          </div>
         </div>
 
-        <div className="form-actions">
-          <button type="submit" className="btn-form">Crear Cliente</button>
+        <div className="fieldset">
+          <div className="legend">Contacto y facturación</div>
+
+          <div className="form-row">
+            <div className="label">Dirección</div>
+            <div className="control">
+              <input
+                className="input"
+                value={nuevoCliente.direccion}
+                onChange={(e)=>setNuevoCliente(s=>({...s, direccion: e.target.value}))}
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="label">Teléfono</div>
+            <div className="control">
+              <input
+                className="input"
+                inputMode="tel"
+                value={nuevoCliente.telefono}
+                onChange={(e)=>setNuevoCliente(s=>({...s, telefono: e.target.value}))}
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="label">Correo electrónico</div>
+            <div className="control">
+              <input
+                className="input"
+                type="email"
+                value={nuevoCliente.correo_electronico}
+                onChange={(e)=>setNuevoCliente(s=>({...s, correo_electronico: e.target.value}))}
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="label">Forma de pago</div>
+            <div className="control">
+              <select
+                className="select"
+                value={nuevoCliente.forma_pago}
+                onChange={(e)=>setNuevoCliente(s=>({...s, forma_pago: e.target.value}))}
+              >
+                <option value="">—</option>
+                <option value="Pago a 15 días">Pago a 15 días</option>
+                <option value="Pago a 30 días">Pago a 30 días</option>
+                <option value="Pago contado">Pago contado</option>
+              </select>
+            </div>
+          </div>
         </div>
       </form>
-    </section>
+    </AdminLayout>
   );
 }
+
 
 
 

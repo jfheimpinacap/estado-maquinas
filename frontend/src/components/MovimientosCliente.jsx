@@ -1,22 +1,32 @@
-// src/components/MovimientosCliente.jsx
-export default function MovimientosCliente({ cliente }) {
+export default function MovimientosCliente({ cliente, setView }) {
   return (
-    <section className="panel-section panel-section--compact">
-      <h2 className="text-xl font-semibold mb-3">Movimientos del Cliente</h2>
-
+    <AdminLayout
+      setView={setView}
+      title="Movimientos del cliente"
+      breadcrumbs={<>Clientes / Movimientos</>}
+      actions={
+        <button className="btn btn-ghost" onClick={() => setView?.("ver-cliente")}>← Volver a ficha</button>
+      }
+    >
       {!cliente ? (
-        <p className="text-gray-600 text-sm">
-          Selecciona un cliente desde “Buscar Cliente” para ver sus movimientos.
-        </p>
+        <div className="fieldset">
+          <p className="help-text">
+            Selecciona un cliente desde “Buscar cliente” para ver sus movimientos.
+          </p>
+        </div>
       ) : (
         <>
-          <div className="mb-3 text-sm">
-            <strong>Cliente:</strong> {cliente.razon_social} &middot;{" "}
-            <strong>RUT:</strong> {cliente.rut}
+          <div className="fieldset">
+            <div className="legend">Cliente</div>
+            <div className="form-row">
+              <div className="label">Razón Social</div>
+              <div className="control">{cliente.razon_social} <span className="help-text">RUT: {cliente.rut}</span></div>
+            </div>
           </div>
 
-          <div className="table-wrap">
-            <table className="w-full text-left">
+          <div className="fieldset">
+            <div className="legend">Comprobantes</div>
+            <table className="admin-table">
               <thead>
                 <tr>
                   <th>Tipo</th>
@@ -28,7 +38,7 @@ export default function MovimientosCliente({ cliente }) {
               </thead>
               <tbody>
                 <tr>
-                  <td className="py-4 text-center text-gray-500" colSpan={5}>
+                  <td colSpan={5} style={{ padding: "1rem", textAlign: "center", color: "var(--muted)" }}>
                     (Pronto) Aquí listaremos Facturas, Guías, NC, ND con filtros y
                     estilo “planilla”.
                   </td>
@@ -38,6 +48,7 @@ export default function MovimientosCliente({ cliente }) {
           </div>
         </>
       )}
-    </section>
+    </AdminLayout>
   );
 }
+

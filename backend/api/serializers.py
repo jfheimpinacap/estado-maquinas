@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
-from .models import Cliente, Maquinaria, Obra, Arriendo, Documento
+from .models import Cliente, Maquinaria, Obra, Arriendo, Documento, OrdenTrabajo, DOC_TIPO
 from django.contrib.auth.models import User
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -82,7 +82,7 @@ class DocumentoSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=False, min_length=6)
+    password = serializers.CharField(write_only=True, required=False, min_length=8, max_length=10)
 
     class Meta:
         model = User
@@ -121,5 +121,53 @@ class UserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+class DocumentoRelacionSerializer(serializers.ModelSerializer):
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
 
+    class Meta:
+        model = Documento
+        fields = ['id', 'tipo', 'tipo_display', 'numero', 'fecha_emision', 'monto_neto', 'monto_iva', 'monto_total']
+
+class DocumentoDetalleSerializer(serializers.ModelSerializer):
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+    cliente_razon = serializers.CharField(source='cliente.razon_social', read_only=True)
+    arriendo_id = serializers.IntegerField(source='arriendo.id', read_only=True)
+    # Relación principal (ej: FACT -> GD | NC -> FACT | ND -> NC)
+    relacionado_con = DocumentoRelacionSerializer(read_only=True)
+    # Hijas inversas (p.ej. FACT -> [NC...], GD no suele tener hijas)
+    relaciones_inversas = DocumentoRelacionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Documento
+        fields = [
+            'id', 'tipo', 'tipo_display', 'numero', 'fecha_emision',
+            'monto_neto', 'monto_iva', 'monto_total',
+            'cliente', 'cliente_razon', 'arriendo_id',
+            'relacionado_con', 'relaciones_inversas',
+            'es_retiro', 'obra_origen', 'obra_destino', 'archivo_url'
+        ]
+
+
+class OrdenTrabajoSerializer(serializers.ModelSerializer):
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+    estado_display = serializers.CharField(source='get_estado_display', read_only=True)
+    cliente_razon = serializers.CharField(source='cliente.razon_social', read_only=True)
+    maquinaria_label = serializers.SerializerMethodField()
+    factura = DocumentoRelacionSerializer(read_only=True)
+    guia = DocumentoRelacionSerializer(read_only=True)
+
+    class Meta:
+        model = OrdenTrabajo
+        fields = [
+            'id', 'tipo', 'tipo_display', 'estado', 'estado_display',
+            'es_facturable', 'fecha_creacion', 'fecha_cierre',
+            'cliente', 'cliente_razon', 'arriendo', 'maquinaria', 'maquinaria_label',
+            'factura', 'guia', 'observaciones'
+        ]
+
+    def get_maquinaria_label(self, obj):
+        if obj.maquinaria_id:
+            m = obj.maquinaria
+            return f"{m.marca} {m.modelo} ({m.serie})" if m.serie else f"{m.marca} {m.modelo}"
+        return None
 

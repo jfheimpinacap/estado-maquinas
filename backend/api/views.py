@@ -7,14 +7,21 @@ from django.utils import timezone
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Maquinaria, Cliente, Obra, Arriendo, Documento, UserSecurity
+from .models import (
+    Maquinaria, Cliente, Obra, Arriendo,
+    Documento, OrdenTrabajo, UserSecurity, DOC_TIPO
+)
 from .serializers import (
     MaquinariaSerializer, ClienteSerializer, ObraSerializer,
-    ArriendoSerializer, DocumentoSerializer, UserSerializer
+    ArriendoSerializer,
+    # nuevos serializers para documentos/OT:
+    DocumentoDetalleSerializer, OrdenTrabajoSerializer,
+    # admin users:
+    UserSerializer
 )
 
 MAX_FAILED = 5
@@ -25,9 +32,13 @@ def _get_or_create_sec(u: User) -> UserSecurity:
     return sec
 
 
+# =======================
+#   Maquinarias
+# =======================
 class MaquinariaViewSet(viewsets.ModelViewSet):
     queryset = Maquinaria.objects.all()
     serializer_class = MaquinariaSerializer
+    permission_classes = [IsAuthenticated]
 
     def list(self, request, *args, **kwargs):
         q = (request.GET.get("query") or "").strip()
@@ -50,6 +61,10 @@ class MaquinariaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def historial(self, request, pk=None):
+        """
+        Historial cronológico de arriendos de la máquina con doc más reciente
+        de cada arriendo.
+        """
         try:
             maq = Maquinaria.objects.get(pk=pk)
         except Maquinaria.DoesNotExist:
@@ -64,7 +79,7 @@ class MaquinariaViewSet(viewsets.ModelViewSet):
         historial = []
         for arr in arriendos:
             doc = arr.documentos.all().order_by('-fecha_emision', '-id').first()
-            doc_label = f"{doc.tipo} {doc.numero}" if doc else "—"
+            doc_label = f"{doc.get_tipo_display()} {doc.numero}" if doc else "—"
             historial.append({
                 "documento": doc_label,
                 "fecha_inicio": arr.fecha_inicio,
@@ -74,9 +89,13 @@ class MaquinariaViewSet(viewsets.ModelViewSet):
         return Response(historial, status=200)
 
 
+# =======================
+#   Clientes
+# =======================
 class ClienteViewSet(viewsets.ModelViewSet):
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
+    permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
         try:
@@ -97,14 +116,22 @@ class ClienteViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+# =======================
+#   Obras
+# =======================
 class ObraViewSet(viewsets.ModelViewSet):
     queryset = Obra.objects.all()
     serializer_class = ObraSerializer
+    permission_classes = [IsAuthenticated]
 
 
+# =======================
+#   Arriendos
+# =======================
 class ArriendoViewSet(viewsets.ModelViewSet):
     queryset = Arriendo.objects.all()
     serializer_class = ArriendoSerializer
+    permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
         maq_id = request.data.get("maquinaria")
@@ -123,29 +150,82 @@ class ArriendoViewSet(viewsets.ModelViewSet):
         return resp
 
 
-class DocumentoViewSet(viewsets.ModelViewSet):
-    queryset = Documento.objects.all()
-    serializer_class = DocumentoSerializer
+# =======================
+#   Documentos (consulta)
+# =======================
+class DocumentoViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Consulta de documentos tributarios con asociaciones:
+    - FACT -> (opcional) GD en relacionado_con (periodo inicial)
+    - FACT -> puede tener varias NC (relaciones_inversas)
+    - NC   -> puede tener varias ND (relaciones_inversas)
+    - GD   -> es_retiro indica retiro (no facturable) vs despacho (facturable)
+    Filtros: tipo, numero, cliente (razón social o RUT), desde, hasta.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = DocumentoDetalleSerializer
+    queryset = (Documento.objects
+                .select_related('cliente', 'arriendo', 'obra_origen', 'obra_destino', 'relacionado_con')
+                .prefetch_related('relaciones_inversas'))
 
-    def create(self, request, *args, **kwargs):
-        resp = super().create(request, *args, **kwargs)
-        if resp.status_code in (200, 201):
-            doc_id = resp.data.get("id")
-            try:
-                doc = Documento.objects.get(pk=doc_id)
-            except Documento.DoesNotExist:
-                return resp
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        tipo = (request.GET.get("tipo") or "").upper().strip()
+        numero = (request.GET.get("numero") or "").strip()
+        cliente = (request.GET.get("cliente") or "").strip()
+        desde = request.GET.get("desde")
+        hasta = request.GET.get("hasta")
 
-            if doc.tipo == "Guia Retiro":
-                arriendo = doc.arriendo
-                maq = arriendo.maquinaria
-                maq.estado = "Disponible"
-                maq.save(update_fields=["estado"])
-                arriendo.estado = "Finalizado"
-                arriendo.save(update_fields=["estado"])
-        return resp
+        if tipo in dict(DOC_TIPO):
+            qs = qs.filter(tipo=tipo)
+        if numero:
+            qs = qs.filter(numero__icontains=numero)
+        if cliente:
+            qs = qs.filter(Q(cliente__razon_social__icontains=cliente) | Q(cliente__rut__icontains=cliente))
+        if desde:
+            qs = qs.filter(fecha_emision__gte=desde)
+        if hasta:
+            qs = qs.filter(fecha_emision__lte=hasta)
+
+        qs = qs.order_by('-fecha_emision', '-id')
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            ser = self.get_serializer(page, many=True)
+            return self.get_paginated_response(ser.data)
+        ser = self.get_serializer(qs, many=True)
+        return Response(ser.data)
 
 
+# =======================
+#   Órdenes de Trabajo (estado)
+# =======================
+class OrdenTrabajoViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    “Estado de arriendos y servicios activos”
+    GET /ordenes?solo_pendientes=true   -> solo PEND
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrdenTrabajoSerializer
+    queryset = (OrdenTrabajo.objects
+                .select_related('cliente', 'arriendo', 'maquinaria', 'factura', 'guia'))
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        solo_pend = (request.GET.get("solo_pendientes") or "").lower() in ("1", "true", "t", "yes", "y")
+        if solo_pend:
+            qs = qs.filter(estado="PEND")
+        qs = qs.order_by('-fecha_creacion')
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            ser = self.get_serializer(page, many=True)
+            return self.get_paginated_response(ser.data)
+        ser = self.get_serializer(qs, many=True)
+        return Response(ser.data)
+
+
+# =======================
+#   Auth & Users (igual que tenías)
+# =======================
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
@@ -157,9 +237,8 @@ def register(request):
     if User.objects.filter(username__iexact=username).exists():
         return Response({'detail': 'El usuario ya existe.'}, status=400)
     user = User.objects.create_user(username=username, password=password, email=email, is_staff=False)
-    _get_or_create_sec(user)  # si ya tienes esto en tu views
+    _get_or_create_sec(user)
     return Response({'id': user.id, 'username': user.username, 'email': user.email}, status=201)
-
 
 
 @api_view(['POST'])
@@ -178,7 +257,6 @@ def login(request):
 
     user = authenticate(username=username, password=password)
     if user is None:
-        # fallo: incrementar contador si existe usuario
         u = User.objects.filter(username__iexact=username).first()
         if u:
             sec = _get_or_create_sec(u)
@@ -189,12 +267,10 @@ def login(request):
             sec.save(update_fields=['failed_attempts', 'is_locked', 'locked_at'])
         return Response({'detail': 'Credenciales inválidas.'}, status=400)
 
-    # éxito: si estaba bloqueado, no permitir hasta recuperar
     sec = _get_or_create_sec(user)
     if sec.is_locked:
         return Response({'detail': 'Cuenta bloqueada. Use "Recuperar clave".'}, status=403)
 
-    # resetear contador al ingresar bien
     if sec.failed_attempts:
         sec.failed_attempts = 0
         sec.save(update_fields=['failed_attempts'])
@@ -217,25 +293,15 @@ def login(request):
 @permission_classes([AllowAny])
 def recover_start(request):
     """
-    Placeholder: inicia proceso de recuperación.
-    Ahora acepta 'email' (preferido) o 'username' como respaldo.
+    Placeholder: inicia proceso de recuperación (email o username).
     """
     email = (request.data.get('email') or '').strip()
     username = (request.data.get('username') or '').strip()
 
-    # No revelar existencia de la cuenta
     if not email and not username:
         return Response({'detail': 'Falta correo electrónico.'}, status=400)
 
-    # Buscar por email (preferido) o username
-    user_qs = None
-    if email:
-        user_qs = User.objects.filter(email__iexact=email)
-    elif username:
-        user_qs = User.objects.filter(username__iexact=username)
-
-    # Aquí después: generar código y enviar correo si user_qs.exists()
-    # Siempre respondemos 200 para no filtrar información
+    # Luego: generar código y enviar correo si existe
     return Response({'detail': 'Si el correo existe, se enviarán instrucciones.'}, status=200)
 
 

@@ -1,4 +1,3 @@
-// src/components/MaquinariaForm.jsx
 import { useState } from 'react'
 import { toast } from 'react-toastify'
 import { useAuth } from '../context/AuthContext'
@@ -18,7 +17,7 @@ const modeloSeriePattern = '^[A-Za-z0-9\\-\\s]{1,50}$'
 const maxLenDesc = 280
 const twoDecimalsOk = (v) => /^(\d+)(\.\d{1,2})?$/.test(String(v ?? ''))
 
-export default function MaquinariaForm() {
+export default function MaquinariaForm({ setView }) {
   const [categoria, setCategoria] = useState(null)
   const [formAltura, setFormAltura] = useState(initialAltura)
   const [formCamion, setFormCamion] = useState(initialCamion)
@@ -51,7 +50,7 @@ export default function MaquinariaForm() {
         categoria,
         marca: marca?.trim(),
         modelo: modelo?.trim(),
-        serie: null, // camión no usa serie en este formulario
+        serie: null,
         anio: anio ? Number(anio) : null,
         tonelaje: tonelaje ? Number(tonelaje) : null,
         descripcion: (descripcion || '').trim() || null,
@@ -103,8 +102,8 @@ export default function MaquinariaForm() {
     try {
       const res = await authFetch(`${backendURL}/maquinarias`, {
         method: 'POST',
-        token,           // <<<<<< AGREGA AUTH
-        json: payload,   // pone Content-Type: application/json automáticamente
+        token,
+        json: payload,
       })
 
       if (res.ok) {
@@ -123,102 +122,189 @@ export default function MaquinariaForm() {
     }
   }
 
-  const CatBtn = ({ id, className = '', children }) => {
-    const active = categoria === id
-    return (
-      <button
-        type="button"
-        className={`cat-btn ${active ? 'cat-btn--active' : ''} ${className}`}
-        onClick={() => setCategoria(id)}
-      >
-        {children}
-      </button>
-    )
-  }
+  const actions = (
+    <>
+      <button className="btn btn-primary" type="submit" form="maq-create-form">Guardar</button>
+      <button className="btn btn-ghost" onClick={() => setView?.('buscarMaquina')}>Cancelar</button>
+    </>
+  )
 
   return (
-    <section className="form-section form-section--compact2">
-      <h2>Crear maquinaria</h2>
-
-      <div className="category-grid">
-        <CatBtn id={CATEGORIAS.ALTURA} className="cat-two-lines">
-          <span>Equipos para trabajo</span>
-          <span>en altura</span>
-        </CatBtn>
-        <CatBtn id={CATEGORIAS.CAMIONES}>Camiones</CatBtn>
-        <CatBtn id={CATEGORIAS.CARGA}>Equipos de carga</CatBtn>
-      </div>
-
-      {categoria && (
-        <form onSubmit={handleSubmit} className="stack-sm">
-          {categoria === CATEGORIAS.ALTURA && (
-            <>
-              <input className="form-input form-input--sm" type="text" placeholder="Marca *"
-                value={formAltura.marca} onChange={(e) => setFormAltura({ ...formAltura, marca: e.target.value })} required />
-              <input className="form-input form-input--sm" type="text" placeholder="Modelo *"
-                value={formAltura.modelo} onChange={(e) => setFormAltura({ ...formAltura, modelo: e.target.value })}
-                pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
-              <input className="form-input form-input--sm" type="text" placeholder="Serie *"
-                value={formAltura.serie} onChange={(e) => setFormAltura({ ...formAltura, serie: e.target.value })}
-                pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
-              <input className="form-input form-input--sm" type="number" placeholder="Altura en metros (ej: 10.50) *"
-                value={formAltura.altura} onChange={(e) => setFormAltura({ ...formAltura, altura: e.target.value })}
-                step="0.01" min="0" required />
-              <textarea className="form-input form-textarea"
-                placeholder={`Descripción (máx. ${maxLenDesc} caracteres)`}
-                value={formAltura.descripcion}
-                onChange={(e) => setFormAltura({ ...formAltura, descripcion: e.target.value.slice(0, maxLenDesc) })}
-                maxLength={maxLenDesc} />
-            </>
-          )}
-
-          {categoria === CATEGORIAS.CAMIONES && (
-            <>
-              <input className="form-input form-input--sm" type="text" placeholder="Marca *"
-                value={formCamion.marca} onChange={(e) => setFormCamion({ ...formCamion, marca: e.target.value })} required />
-              <input className="form-input form-input--sm" type="text" placeholder="Modelo *"
-                value={formCamion.modelo} onChange={(e) => setFormCamion({ ...formCamion, modelo: e.target.value })}
-                pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
-              <input className="form-input form-input--sm" type="number" placeholder="Año *"
-                value={formCamion.anio} onChange={(e) => setFormCamion({ ...formCamion, anio: e.target.value })}
-                min="1980" max={new Date().getFullYear() + 1} required />
-              <input className="form-input form-input--sm" type="number" placeholder="Tonelaje (peso máx. de carga) *"
-                value={formCamion.tonelaje} onChange={(e) => setFormCamion({ ...formCamion, tonelaje: e.target.value })}
-                step="0.01" min="0" required />
-              <textarea className="form-input form-textarea"
-                placeholder={`Descripción (máx. ${maxLenDesc} caracteres)`}
-                value={formCamion.descripcion}
-                onChange={(e) => setFormCamion({ ...formCamion, descripcion: e.target.value.slice(0, maxLenDesc) })}
-                maxLength={maxLenDesc} />
-            </>
-          )}
-
-          {categoria === CATEGORIAS.CARGA && (
-            <>
-              <input className="form-input form-input--sm" type="text" placeholder="Marca *"
-                value={formCarga.marca} onChange={(e) => setFormCarga({ ...formCarga, marca: e.target.value })} required />
-              <input className="form-input form-input--sm" type="text" placeholder="Modelo *"
-                value={formCarga.modelo} onChange={(e) => setFormCarga({ ...formCarga, modelo: e.target.value })}
-                pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
-              <input className="form-input form-input--sm" type="number" placeholder="Carga (peso máx. de carga) *"
-                value={formCarga.carga} onChange={(e) => setFormCarga({ ...formCarga, carga: e.target.value })}
-                step="0.01" min="0" required />
-              <textarea className="form-input form-textarea"
-                placeholder={`Descripción (máx. ${maxLenDesc} caracteres)`}
-                value={formCarga.descripcion}
-                onChange={(e) => setFormCarga({ ...formCarga, descripcion: e.target.value.slice(0, maxLenDesc) })}
-                maxLength={maxLenDesc} />
-            </>
-          )}
-
-          <div className="form-actions-center">
-            <button type="submit" className="btn-cat">Crear máquina</button>
+    <AdminLayout
+      setView={setView}
+      title="Añadir maquinaria"
+      breadcrumbs={<>Maquinaria / Añadir</>}
+      actions={actions}
+    >
+      <form id="maq-create-form" onSubmit={handleSubmit}>
+        <div className="fieldset">
+          <div className="legend">Categoría</div>
+          <div className="form-row">
+            <div className="label">Tipo</div>
+            <div className="control" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => setCategoria(CATEGORIAS.ALTURA)}
+                style={{ borderColor: categoria===CATEGORIAS.ALTURA ? 'var(--accent)' : 'var(--card-border)' }}>
+                Trabajo en altura
+              </button>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => setCategoria(CATEGORIAS.CAMIONES)}
+                style={{ borderColor: categoria===CATEGORIAS.CAMIONES ? 'var(--accent)' : 'var(--card-border)' }}>
+                Camiones
+              </button>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => setCategoria(CATEGORIAS.CARGA)}
+                style={{ borderColor: categoria===CATEGORIAS.CARGA ? 'var(--accent)' : 'var(--card-border)' }}>
+                Equipos de carga
+              </button>
+              <div className="help-text">Selecciona la categoría antes de ingresar datos.</div>
+            </div>
           </div>
-        </form>
-      )}
-    </section>
+        </div>
+
+        {categoria === CATEGORIAS.ALTURA && (
+          <div className="fieldset">
+            <div className="legend">Datos de equipo en altura</div>
+
+            <div className="form-row">
+              <div className="label">Marca *</div>
+              <div className="control">
+                <input className="input" value={formAltura.marca}
+                  onChange={(e)=>setFormAltura({...formAltura, marca: e.target.value})} required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Modelo *</div>
+              <div className="control">
+                <input className="input" value={formAltura.modelo}
+                  onChange={(e)=>setFormAltura({...formAltura, modelo: e.target.value})}
+                  pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Serie *</div>
+              <div className="control">
+                <input className="input" value={formAltura.serie}
+                  onChange={(e)=>setFormAltura({...formAltura, serie: e.target.value})}
+                  pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
+            </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Altura (m) *</div>
+              <div className="control">
+                <input className="input" type="number" step="0.01" min="0" value={formAltura.altura}
+                  onChange={(e)=>setFormAltura({...formAltura, altura: e.target.value})} required />
+                <div className="help-text">Usa punto como separador decimal (ej: 10.50).</div>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Descripción</div>
+              <div className="control">
+                <textarea className="textarea" value={formAltura.descripcion}
+                  onChange={(e)=>setFormAltura({...formAltura, descripcion: e.target.value.slice(0, maxLenDesc)})}
+                  maxLength={maxLenDesc} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {categoria === CATEGORIAS.CAMIONES && (
+          <div className="fieldset">
+            <div className="legend">Datos de camión</div>
+
+            <div className="form-row">
+              <div className="label">Marca *</div>
+              <div className="control">
+                <input className="input" value={formCamion.marca}
+                  onChange={(e)=>setFormCamion({...formCamion, marca: e.target.value})} required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Modelo *</div>
+              <div className="control">
+                <input className="input" value={formCamion.modelo}
+                  onChange={(e)=>setFormCamion({...formCamion, modelo: e.target.value})}
+                  pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Año *</div>
+              <div className="control">
+                <input className="input" type="number" value={formCamion.anio}
+                  min="1980" max={new Date().getFullYear() + 1}
+                  onChange={(e)=>setFormCamion({...formCamion, anio: e.target.value})} required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Tonelaje *</div>
+              <div className="control">
+                <input className="input" type="number" step="0.01" min="0" value={formCamion.tonelaje}
+                  onChange={(e)=>setFormCamion({...formCamion, tonelaje: e.target.value})} required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Descripción</div>
+              <div className="control">
+                <textarea className="textarea" value={formCamion.descripcion}
+                  onChange={(e)=>setFormCamion({...formCamion, descripcion: e.target.value.slice(0, maxLenDesc)})}
+                  maxLength={maxLenDesc} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {categoria === CATEGORIAS.CARGA && (
+          <div className="fieldset">
+            <div className="legend">Datos de equipo de carga</div>
+
+            <div className="form-row">
+              <div className="label">Marca *</div>
+              <div className="control">
+                <input className="input" value={formCarga.marca}
+                  onChange={(e)=>setFormCarga({...formCarga, marca: e.target.value})} required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Modelo *</div>
+              <div className="control">
+                <input className="input" value={formCarga.modelo}
+                  onChange={(e)=>setFormCarga({...formCarga, modelo: e.target.value})}
+                  pattern={modeloSeriePattern} title="Solo letras, números, guion y espacios" required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Carga (máx.) *</div>
+              <div className="control">
+                <input className="input" type="number" step="0.01" min="0" value={formCarga.carga}
+                  onChange={(e)=>setFormCarga({...formCarga, carga: e.target.value})} required />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="label">Descripción</div>
+              <div className="control">
+                <textarea className="textarea" value={formCarga.descripcion}
+                  onChange={(e)=>setFormCarga({...formCarga, descripcion: e.target.value.slice(0, maxLenDesc)})}
+                  maxLength={maxLenDesc} />
+              </div>
+            </div>
+          </div>
+        )}
+      </form>
+    </AdminLayout>
   )
 }
+
 
 
 

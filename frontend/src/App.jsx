@@ -1,10 +1,12 @@
 // src/App.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+import Topbar from "./components/Topbar";
 import Sidebar from "./components/Sidebar";
+
 import MaquinariaForm from "./components/MaquinariaForm";
 import BuscarMaquina from "./components/BuscarMaquina";
 import HistorialMaquina from "./components/HistorialMaquina";
@@ -13,120 +15,130 @@ import ClientesList from "./components/ClientesList";
 import BuscarCliente from "./components/BuscarCliente";
 import VerCliente from "./components/VerCliente";
 import EditarCliente from "./components/EditarCliente";
-import UsersAdmin from "./components/users/UsersAdmin";
-import UsersEdit from "./components/users/UsersEdit"; 
+import BuscarDocumentos from "./components/BuscarDocumentos";
+import EstadoOrdenes from "./components/EstadoOrdenes";
 
 import { useAuth } from "./context/AuthContext";
-import LoginPage from "./components/auth/LoginPage";
-import RegisterPage from "./components/auth/RegisterPage";
-import RecoverPage from "./components/auth/RecoverPage";
+import AdminLogin from "./pages/AdminLogin";
 
+import "./styles/admin-theme.css";
 import "./App.css";
 
-function AppShell({
+function AdminShell({
   view, setView,
   selectedCliente, setSelectedCliente,
-  selectedMaquina, setSelectedMaquina,
-  selectedUser, setSelectedUser
+  selectedMaquina, setSelectedMaquina
 }) {
-  return (
-    <>
-      <Sidebar setView={setView} />
-      <main className="flex-1 p-8 bg-white min-h-screen text-black">
-        {view === "crearMaquinaria" && <MaquinariaForm />}
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-        {view === "buscarMaquina" && (
-          <BuscarMaquina setView={setView} setSelectedMaquina={setSelectedMaquina} />
-        )}
+  useEffect(() => {
+    document.documentElement.classList.toggle("sidebar-open", sidebarOpen);
+    return () => document.documentElement.classList.remove("sidebar-open");
+  }, [sidebarOpen]);
 
-        {view === "historial-maquina" && (
-          <HistorialMaquina selectedMaquina={selectedMaquina} setView={setView} />
-        )}
-
-        {view === "crear-cliente" && <ClientesForm />}
-
-        {view === "listar-clientes" && <ClientesList />}
-
-        {view === "buscar-cliente" && (
-          <BuscarCliente setSelectedCliente={setSelectedCliente} setView={setView} />
-        )}
-
-        {view === "editar-cliente" && (
-          <EditarCliente
-            selectedCliente={selectedCliente}
-            setSelectedCliente={setSelectedCliente}
-            setView={setView}
-          />
-        )}
-
-        {view === "ver-cliente" && selectedCliente && (
-          <VerCliente
-            cliente={selectedCliente}
-            setView={setView}
-            setSelectedCliente={setSelectedCliente}
-          />
-        )}
-
-        {view === "control-usuarios" && (
-          <UsersAdmin setView={setView} setSelectedUser={setSelectedUser} />
-        )}
-
-        {view === "editar-usuario" && selectedUser && (
-          <UsersEdit
-            selectedUser={selectedUser}
-            setSelectedUser={setSelectedUser}
-            setView={setView}
-          />
-        )}
-      </main>
-    </>
-  );
-}
-
-export default function App() {
-  const [view, setView] = useState("home");
-  const [selectedCliente, setSelectedCliente] = useState(null);
-  const [selectedMaquina, setSelectedMaquina] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null); 
-
-  const { auth } = useAuth();
+  const closeSidebarIfOpen = () => { if (sidebarOpen) setSidebarOpen(false); };
 
   return (
-    <div id="root">
-      <Routes>
-        {!auth?.user ? (
-          <>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/recover" element={<RecoverPage />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </>
-        ) : (
-          <>
-            <Route
-              path="/"
-              element={
-                <AppShell
-                  view={view}
-                  setView={setView}
-                  selectedCliente={selectedCliente}
-                  setSelectedCliente={setSelectedCliente}
-                  selectedMaquina={selectedMaquina}
-                  setSelectedMaquina={setSelectedMaquina}
-                  selectedUser={selectedUser}            
-                  setSelectedUser={setSelectedUser}      
-                />
-              }
+    <div className="admin-root">
+      <Topbar onToggleSidebar={() => setSidebarOpen(s => !s)} />
+
+      <div className="admin-body" onClick={closeSidebarIfOpen}>
+        {/* ¡no envuelvas Sidebar con otro <aside>! */}
+        <Sidebar setView={setView} />
+
+        <main className="admin-main" onClick={e => e.stopPropagation()}>
+          {/* encabezado opcional */}
+          {view === "buscar-cliente" && (
+            <header className="page-header">
+              <h1 className="page-title">Buscar cliente</h1>
+              <div className="breadcrumbs">Clientes / Buscar</div>
+            </header>
+          )}
+
+          {/* Vistas */}
+          {view === "crearMaquinaria" && <MaquinariaForm />}
+          {view === "buscarMaquina" && (
+            <BuscarMaquina setView={setView} setSelectedMaquina={setSelectedMaquina} />
+          )}
+          {view === "historial-maquina" && (
+            <HistorialMaquina selectedMaquina={selectedMaquina} setView={setView} />
+          )}
+          {view === "crear-cliente" && <ClientesForm />}
+          {view === "listar-clientes" && <ClientesList />}
+          {view === "buscar-cliente" && (
+            <BuscarCliente setSelectedCliente={setSelectedCliente} setView={setView} />
+          )}
+          {view === "editar-cliente" && (
+            <EditarCliente
+              selectedCliente={selectedCliente}
+              setSelectedCliente={setSelectedCliente}
+              setView={setView}
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
-      </Routes>
-
+          )}
+          {view === "ver-cliente" && selectedCliente && (
+            <VerCliente
+              cliente={selectedCliente}
+              setView={setView}
+              setSelectedCliente={setSelectedCliente}
+            />
+          )}
+          {view === "buscar-documentos" && <BuscarDocumentos setView={setView} />}
+          {view === "estado-ordenes" && <EstadoOrdenes setView={setView} />}
+        </main>
+      </div>
       <ToastContainer />
     </div>
   );
 }
+
+export default function App() {
+  const [view, setView] = useState("buscar-cliente");
+  const [selectedCliente, setSelectedCliente] = useState(null);
+  const [selectedMaquina, setSelectedMaquina] = useState(null);
+  const { auth } = useAuth();
+
+  return (
+    <>
+      <Routes>
+        <Route
+          path="/login"
+          element={auth?.user ? <Navigate to="/" replace /> : <AdminLogin />}
+        />
+        <Route
+          path="/"
+          element={
+            auth?.user ? (
+              <AdminShell
+                view={view}
+                setView={setView}
+                selectedCliente={selectedCliente}
+                setSelectedCliente={setSelectedCliente}
+                selectedMaquina={selectedMaquina}
+                setSelectedMaquina={setSelectedMaquina}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="*"
+          element={auth?.user ? <Navigate to="/" replace /> : <Navigate to="/login" replace />}
+        />
+      </Routes>
+    </>
+  );
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
