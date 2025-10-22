@@ -1,20 +1,11 @@
+// src/components/ClientesForm.jsx
 import { useState } from "react";
-import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
 
-function formatRutLive(value) {
-  let v = (value || "").replace(/[^\dkK]/g, "").toUpperCase();
-  const cuerpo = v.slice(0, -1);
-  const dv = v.slice(-1);
-  const rev = cuerpo.split("").reverse().join("");
-  const revWithDots = rev.replace(/(\d{3})(?=\d)/g, "$1.");
-  const cuerpoFormateado = revWithDots.split("").reverse().join("");
-  return dv ? `${cuerpoFormateado}-${dv}` : cuerpoFormateado;
-}
-
-export default function ClientesForm({ setView }) {
-  const [nuevoCliente, setNuevoCliente] = useState({
+export default function ClientesForm({ onSaved, setView }) {
+  const { auth, backendURL } = useAuth();
+  const [form, setForm] = useState({
     razon_social: "",
     rut: "",
     direccion: "",
@@ -22,155 +13,116 @@ export default function ClientesForm({ setView }) {
     correo_electronico: "",
     forma_pago: "",
   });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const { auth, backendURL } = useAuth();
+  const change = (k) => (e) => setForm((s) => ({ ...s, [k]: e.target.value }));
 
-  const handleRutChange = (e) => {
-    const formateado = formatRutLive(e.target.value);
-    setNuevoCliente((prev) => ({ ...prev, rut: formateado }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const save = async (stay=false) => {
+    setSaving(true); setError("");
     try {
       const res = await authFetch(`${backendURL}/clientes`, {
+        token: auth.access,
         method: "POST",
-        token: auth?.access,
-        json: { ...nuevoCliente },
+        json: form,
       });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(txt || "Error");
-      }
+      if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      toast.success(`✅ Cliente creado con ID ${data.id}`);
-      setNuevoCliente({
-        razon_social: "",
-        rut: "",
-        direccion: "",
-        telefono: "",
-        correo_electronico: "",
-        forma_pago: "",
-      });
-    } catch (err) {
-      toast.error("❌ Error al crear el cliente");
-      console.error(err);
+      onSaved?.(data);
+      if (stay) {
+        // limpiar y quedarse
+        setForm({ razon_social:"", rut:"", direccion:"", telefono:"", correo_electronico:"", forma_pago:"" });
+      } else {
+        setView?.("buscar-cliente");
+      }
+    } catch (e) {
+      setError(e?.message?.replace(/^"|"$/g,"") || "No se pudo guardar");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const actions = (
-    <>
-      <button className="btn btn-primary" type="submit" form="cliente-create-form">
-        Guardar
-      </button>
-      <button className="btn btn-ghost" onClick={() => setView?.("listar-clientes")}>
-        Cancelar
-      </button>
-    </>
-  );
-
   return (
-    <AdminLayout
-      setView={setView}
-      title="Añadir cliente"
-      breadcrumbs={
-        <>
-          <a href="#" onClick={(e)=>{ e.preventDefault(); setView?.("listar-clientes"); }}>Clientes</a> / Añadir
-        </>
-      }
-      actions={actions}
-    >
-      <form id="cliente-create-form" onSubmit={handleSubmit}>
+    <>
+      <header className="page-header">
+        <h1 className="page-title">Añadir cliente</h1>
+        <div className="breadcrumbs">Clientes / Añadir</div>
+      </header>
+
+      {/* Card principal como Django */}
+      <div className="admin-card">
         <div className="fieldset">
-          <div className="legend">Datos principales</div>
+          <div className="legend">Información del cliente</div>
 
           <div className="form-row">
-            <div className="label">Razón social</div>
+            <div className="label">Razón social:</div>
             <div className="control">
-              <input
-                className="input"
-                value={nuevoCliente.razon_social}
-                onChange={(e)=>setNuevoCliente(s=>({...s, razon_social: e.target.value}))}
-                required
-              />
-              <div className="help-text">Nombre legal del cliente.</div>
+              <input className="input" value={form.razon_social} onChange={change("razon_social")} />
             </div>
           </div>
 
           <div className="form-row">
-            <div className="label">RUT</div>
+            <div className="label">Rut:</div>
             <div className="control">
-              <input
-                className="input"
-                placeholder="xx.xxx.xxx-x"
-                maxLength={12}
-                value={nuevoCliente.rut}
-                onChange={handleRutChange}
-                required
-              />
-              <div className="help-text">Incluye dígito verificador.</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="fieldset">
-          <div className="legend">Contacto y facturación</div>
-
-          <div className="form-row">
-            <div className="label">Dirección</div>
-            <div className="control">
-              <input
-                className="input"
-                value={nuevoCliente.direccion}
-                onChange={(e)=>setNuevoCliente(s=>({...s, direccion: e.target.value}))}
-              />
+              <input className="input" value={form.rut} onChange={change("rut")} />
             </div>
           </div>
 
           <div className="form-row">
-            <div className="label">Teléfono</div>
+            <div className="label">Dirección:</div>
             <div className="control">
-              <input
-                className="input"
-                inputMode="tel"
-                value={nuevoCliente.telefono}
-                onChange={(e)=>setNuevoCliente(s=>({...s, telefono: e.target.value}))}
-              />
+              <input className="input" value={form.direccion} onChange={change("direccion")} />
             </div>
           </div>
 
           <div className="form-row">
-            <div className="label">Correo electrónico</div>
+            <div className="label">Teléfono:</div>
             <div className="control">
-              <input
-                className="input"
-                type="email"
-                value={nuevoCliente.correo_electronico}
-                onChange={(e)=>setNuevoCliente(s=>({...s, correo_electronico: e.target.value}))}
-              />
+              <input className="input" value={form.telefono} onChange={change("telefono")} />
             </div>
           </div>
 
           <div className="form-row">
-            <div className="label">Forma de pago</div>
+            <div className="label">Correo electrónico:</div>
             <div className="control">
-              <select
-                className="select"
-                value={nuevoCliente.forma_pago}
-                onChange={(e)=>setNuevoCliente(s=>({...s, forma_pago: e.target.value}))}
-              >
-                <option value="">—</option>
+              <input className="input" type="email" value={form.correo_electronico} onChange={change("correo_electronico")} />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="label">Forma de pago:</div>
+            <div className="control">
+              <select className="select" value={form.forma_pago} onChange={change("forma_pago")}>
+                <option value="">---------</option>
                 <option value="Pago a 15 días">Pago a 15 días</option>
                 <option value="Pago a 30 días">Pago a 30 días</option>
                 <option value="Pago contado">Pago contado</option>
               </select>
             </div>
           </div>
+
+          {error ? (
+            <div style="color:#ffb4b4; font-weight:700; margin-top:.4rem">{error}</div>
+          ) : null}
         </div>
-      </form>
-    </AdminLayout>
+      </div>
+
+      {/* Barra de acciones idéntica a Django (alineada a la derecha) */}
+      <div className="admin-card" style={{ marginTop: 14 }}>
+        <div className="fieldset" style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button className="btn btn-ghost" onClick={()=>setView?.("buscar-cliente")}>Cancelar</button>
+          <button className="btn btn-primary" disabled={saving} onClick={()=>save(false)}>
+            {saving ? "Guardando…" : "Guardar"}
+          </button>
+          <button className="btn btn-primary" disabled={saving} onClick={()=>save(true)}>
+            {saving ? "Guardando…" : "Guardar y añadir otro"}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
+
 
 
 
