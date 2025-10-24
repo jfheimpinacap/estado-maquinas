@@ -17,6 +17,13 @@ import VerCliente from "./components/VerCliente";
 import EditarCliente from "./components/EditarCliente";
 import BuscarDocumentos from "./components/BuscarDocumentos";
 import EstadoOrdenes from "./components/EstadoOrdenes";
+import InformesClientes from "./components/InformesClientes";
+import ConsultaMaquinarias from "./components/ConsultaMaquinarias";
+import ConsultaDocumentos from "./components/ConsultaDocumentos";
+import InformesDocumentos from "./components/InformesDocumentos";
+import CrearOT from "./components/CrearOT";
+import EstadoArriendoMaquinas from "./components/EstadoArriendoMaquinas";
+
 
 import { useAuth } from "./context/AuthContext";
 import AdminLogin from "./pages/AdminLogin";
@@ -84,6 +91,12 @@ function AdminShell({
           )}
           {view === "buscar-documentos" && <BuscarDocumentos setView={setView} />}
           {view === "estado-ordenes" && <EstadoOrdenes setView={setView} />}
+          {view === "informes-clientes" && <InformesClientes />}
+          {view === "consulta-maquinarias" && <ConsultaMaquinarias />}
+          {view === "consulta-documentos" && <ConsultaDocumentos />} 
+          {view === "informes-documentos" && <InformesDocumentos />}
+          {view === "crear-ot" && <CrearOT />}
+          {view === "estado-arriendo-maquinas" && <EstadoArriendoMaquinas />}
         </main>
       </div>
       <ToastContainer />

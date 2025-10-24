@@ -1,11 +1,17 @@
 # backend/api/admin_site.py
 from django.contrib import admin
+from django.utils.translation import gettext_lazy as _
 
 class AppWebMaquinasAdmin(admin.AdminSite):
     # Branding
-    site_header = "App web máquinas – Administración"
-    site_title  = "App web máquinas"
-    index_title = "Panel de Gestión"
+    site_header = _("App web máquinas – Administración")
+    site_title  = _("App web máquinas")
+    index_title = _("Panel de Gestión")
+
+    # 🔐 Solo permitir acceso a superusuarios
+    def has_permission(self, request):
+        # Por defecto AdminSite permite is_staff; aquí lo limitamos a is_superuser
+        return bool(request.user and request.user.is_active and request.user.is_superuser)
 
     def get_app_list(self, request):
         """
@@ -27,14 +33,14 @@ class AppWebMaquinasAdmin(admin.AdminSite):
             """Busca un modelo por object_name y si no, por name. Devuelve None si no existe."""
             return by_object_name.get(label) or by_name.get(label)
 
-        # Grupos visibles para todos
+        # Grupos visibles para todos los que pasan has_permission (o sea, solo superadmin)
         grupos = [
             ("Clientes",   ["Cliente", "Obra"]),
             ("Maquinaria", ["Maquinaria", "Arriendo"]),
             ("Documentos", ["Documento"]),
         ]
 
-        # Bloque de administración SOLO para superadmin
+        # Bloque de administración SOLO para superadmin (redundante pero explícito)
         if request.user.is_superuser:
             grupos.append(("Administración", ["User", "Group", "UserSecurity"]))
 
@@ -67,6 +73,7 @@ class AppWebMaquinasAdmin(admin.AdminSite):
 
 # Instancia única del AdminSite propio
 admin_site = AppWebMaquinasAdmin(name="appweb_admin")
+
 
 
 

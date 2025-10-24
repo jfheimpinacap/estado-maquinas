@@ -14,9 +14,7 @@ function Row({ label, onClick, onAdd }) {
   return (
     <div className="dja-row">
       <button className="dja-row__label" onClick={onClick}>{label}</button>
-      {onAdd && (
-        <button className="dja-row__add" onClick={onAdd}>+ Añadir</button>
-      )}
+      {onAdd && <button className="dja-row__add" onClick={onAdd}>+ Añadir</button>}
     </div>
   );
 }
@@ -25,41 +23,66 @@ export default function Sidebar({ setView }) {
   const { auth, backendURL } = useAuth();
   const isSuper = !!auth?.user?.is_superuser;
 
-  const openAdmin = () => {
-    const base = (backendURL || "").replace(/\/+$/,"");
+  const openDjangoAdmin = () => {
+    const base = (backendURL || "").replace(/\/+$/, "");
     window.open(`${base}/admin/`, "_blank", "noopener");
   };
 
   return (
     <aside className="dja-sidebar">
+      {/* CLIENTES */}
       <Section title="CLIENTES">
-        <Row label="Clientes" onClick={() => setView("buscar-cliente")} onAdd={() => setView("crear-cliente")} />
-        <Row label="Obras" onClick={() => alert("Pronto: Obras")} onAdd={() => alert("Pronto: Crear obra")} />
+        <Row
+          label="Clientes"
+          onClick={() => setView("buscar-cliente")}
+          onAdd={() => setView("crear-cliente")}
+        />
+        <Row label="Informes" onClick={() => setView("informes-clientes")} />
       </Section>
 
+      {/* MAQUINARIA */}
       <Section title="MAQUINARIA">
-        <Row label="Maquinarias" onClick={() => setView("buscarMaquina")} onAdd={() => setView("crearMaquinaria")} />
-        <Row label="Arriendos" onClick={() => alert("Pronto: Arriendos")} onAdd={() => alert("Pronto: Nuevo arriendo")} />
+        <Row
+          label="Maquinarias"
+          onClick={() => setView("buscarMaquina")}
+          onAdd={() => setView("crearMaquinaria")}
+        />
+        <Row
+          label="Consulta maquinarias"
+          onClick={() => setView("consulta-maquinarias")}
+        />
       </Section>
 
+      {/* DOCUMENTOS */}
       <Section title="DOCUMENTOS">
-        <Row label="Documentos" onClick={() => setView("buscar-documentos")} />
+        <Row
+          label="Consulta de Documentos"
+          onClick={() => setView("consulta-documentos")}
+        />
+        <Row label="Informes" onClick={() => setView("informes-documentos")} />
       </Section>
 
-      <Section title="ESTADO">
-        <Row label="Estado de órdenes" onClick={() => setView("estado-ordenes")} />
+      {/* ESTADO DE MÁQUINAS */}
+      <Section title="ESTADO DE MÁQUINAS">
+        <Row label="Crear OT" onClick={() => setView("crear-ot")} />
+        <Row
+          label="Estado arriendo máquinas"
+          onClick={() => setView("estado-arriendo-maquinas")}
+        />
+        <Row label="Estado de ordenes" onClick={() => setView("estado-ordenes")} />
       </Section>
 
+      {/* ADMINISTRACIÓN → solo superadmin */}
       {isSuper && (
         <Section title="ADMINISTRACIÓN">
-          <Row label="Usuarios" onClick={openAdmin} />
-          <Row label="Grupos" onClick={openAdmin} />
-          <Row label="User security" onClick={openAdmin} />
+          <Row label="Panel de control" onClick={openDjangoAdmin} />
         </Section>
       )}
     </aside>
   );
 }
+
+
 
 
 

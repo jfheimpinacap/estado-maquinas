@@ -11,6 +11,7 @@ from .models import (
 # =======================
 # Inlines
 # =======================
+
 class DocumentoInline(admin.TabularInline):
     model = Documento
     extra = 0
@@ -107,7 +108,6 @@ class UserSecurityAdmin(admin.ModelAdmin):
     list_display = ("user", "failed_attempts", "is_locked", "locked_at")
     list_filter = ("is_locked",)
     search_fields = ("user__username",)
-
 
 # =======================
 # Registro en AdminSite propio
