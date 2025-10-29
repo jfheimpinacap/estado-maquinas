@@ -7,23 +7,28 @@ import "react-toastify/dist/ReactToastify.css";
 import Topbar from "./components/Topbar";
 import Sidebar from "./components/Sidebar";
 
-import MaquinariaForm from "./components/MaquinariaForm";
-import BuscarMaquina from "./components/BuscarMaquina";
-import HistorialMaquina from "./components/HistorialMaquina";
 import ClientesForm from "./components/ClientesForm";
 import ClientesList from "./components/ClientesList";
-import BuscarCliente from "./components/BuscarCliente";
 import VerCliente from "./components/VerCliente";
+import InformesClientes from "./components/InformesClientes";
+import BuscarCliente from "./components/BuscarCliente";
 import EditarCliente from "./components/EditarCliente";
+
+import MaquinariaForm from "./components/MaquinariaForm";
+import MaquinariasList from "./components/MaquinariasList";
+import BuscarMaquina from "./components/BuscarMaquina";
+import HistorialMaquina from "./components/HistorialMaquina";
+import VerMaquina from "./components/VerMaquina";
+import EditarMaquina from "./components/EditarMaquina";
+import ConsultaMaquinarias from "./components/ConsultaMaquinarias";
+
 import BuscarDocumentos from "./components/BuscarDocumentos";
 import EstadoOrdenes from "./components/EstadoOrdenes";
-import InformesClientes from "./components/InformesClientes";
-import ConsultaMaquinarias from "./components/ConsultaMaquinarias";
 import ConsultaDocumentos from "./components/ConsultaDocumentos";
 import InformesDocumentos from "./components/InformesDocumentos";
+
 import CrearOT from "./components/CrearOT";
 import EstadoArriendoMaquinas from "./components/EstadoArriendoMaquinas";
-
 
 import { useAuth } from "./context/AuthContext";
 import AdminLogin from "./pages/AdminLogin";
@@ -89,6 +94,26 @@ function AdminShell({
               setSelectedCliente={setSelectedCliente}
             />
           )}
+          {view === "maquinarias-list" && (
+            <MaquinariasList
+              setView={setView}
+              setSelectedMaquina={setSelectedMaquina}
+            />
+          )}
+          {view === "ver-maquina" && (
+            <VerMaquina
+              setView={setView}
+              selectedMaquina={selectedMaquina}
+              setSelectedMaquina={setSelectedMaquina}
+           />
+          )}
+          {view === "editar-maquina" && (
+            <EditarMaquina
+              setView={setView}
+              selectedMaquina={selectedMaquina}
+              setSelectedMaquina={setSelectedMaquina}
+           />
+          )}          
           {view === "buscar-documentos" && <BuscarDocumentos setView={setView} />}
           {view === "estado-ordenes" && <EstadoOrdenes setView={setView} />}
           {view === "informes-clientes" && <InformesClientes />}

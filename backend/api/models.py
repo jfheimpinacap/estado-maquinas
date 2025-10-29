@@ -6,23 +6,47 @@ from django.contrib.auth.models import User
 # -----------------------------
 # Maquinaria / Clientes / Obra
 # -----------------------------
-class Maquinaria(models.Model):
-    marca = models.CharField(max_length=50)
-    modelo = models.CharField(max_length=50)
-    serie = models.CharField(max_length=50, unique=True)
-    altura = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    estado = models.CharField(max_length=20, default="Disponible")
-    categoria = models.CharField(max_length=30, null=True, blank=True)
-    descripcion = models.CharField(max_length=400, null=True, blank=True)
-    anio = models.IntegerField(null=True, blank=True)
-    tonelaje = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
-    carga = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
 
-    class Meta:
-        db_table = "Maquinaria"
+class Maquinaria(models.Model):
+    CATEGORIA = (
+        ("equipos_altura", "Equipos para trabajo en altura"),
+        ("camiones", "Camiones"),
+        ("equipos_carga", "Equipos para carga"),
+        ("otro", "Otro"),
+    )
+    ESTADO = (
+        ("Disponible", "Disponible"),
+        ("Para venta", "Para venta"),
+    )
+    TIPO_ALTURA = (
+        ("tijera", "Tijera"),
+        ("brazo", "Brazo articulado"),
+    )
+    COMBUSTIBLE = (
+        ("electrico", "Eléctrico"),
+        ("diesel", "Diésel"),
+    )
+
+    marca = models.CharField(max_length=120)
+    modelo = models.CharField(max_length=120, blank=True, null=True)
+    serie = models.CharField(max_length=120, blank=True, null=True, unique=True)
+    categoria = models.CharField(max_length=32, choices=CATEGORIA, default="otro")
+    descripcion = models.TextField(blank=True, null=True)
+
+    # Campos técnicos
+    altura = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
+    anio = models.IntegerField(blank=True, null=True)
+    tonelaje = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
+    carga = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
+
+    # NUEVOS (solo relevantes para elevadores; quedan opcionales)
+    tipo_altura = models.CharField(max_length=16, choices=TIPO_ALTURA, blank=True, null=True)
+    combustible = models.CharField(max_length=16, choices=COMBUSTIBLE, blank=True, null=True)
+
+    estado = models.CharField(max_length=20, choices=ESTADO, default="Disponible")
 
     def __str__(self):
-        return f"{self.marca} {self.modelo} ({self.serie})"
+        return f"{self.marca} {self.modelo or ''} ({self.serie or 's/serie'})".strip()
 
 
 class Cliente(models.Model):

@@ -37,8 +37,14 @@ class ClienteSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
 class MaquinariaSerializer(serializers.ModelSerializer):
+    """
+    Serializer con reglas por categoría:
+      - Acepta etiquetas de UI: 'elevador', 'camion', 'otro'
+      - Normaliza a BD: 'equipos_altura', 'camiones', 'equipos_carga'
+      - Descarta campos que no aplican según categoría.
+      - Todos opcionales salvo 'marca'.
+    """
     obra = serializers.SerializerMethodField()
 
     class Meta:
@@ -47,14 +53,115 @@ class MaquinariaSerializer(serializers.ModelSerializer):
             'id', 'marca', 'modelo', 'serie',
             'categoria', 'descripcion',
             'altura', 'anio', 'tonelaje', 'carga',
-            'estado', 'obra'
+            'estado', 'combustible', 'tipo_altura',  
+            'obra'
         ]
+        # Hacemos opcionales (menos 'marca')
+        extra_kwargs = {
+            'marca':       {'required': True},
+            'modelo':      {'required': False, 'allow_null': True, 'allow_blank': True},
+            'serie':       {'required': False, 'allow_null': True, 'allow_blank': True},
+            'descripcion': {'required': False, 'allow_null': True, 'allow_blank': True},
+            'categoria':   {'required': False, 'allow_null': True, 'allow_blank': True},
+            'altura':      {'required': False, 'allow_null': True},
+            'anio':        {'required': False, 'allow_null': True},
+            'tonelaje':    {'required': False, 'allow_null': True},
+            'carga':       {'required': False, 'allow_null': True},
+            'estado':      {'required': False, 'allow_null': True, 'allow_blank': True},
+            'combustible': {'required': False, 'allow_null': True, 'allow_blank': True},  
+            'tipo_altura': {'required': False, 'allow_null': True, 'allow_blank': True},            
+        }
 
+    # ---------- helpers ----------
+    def _canon_categoria(self, v: str | None) -> str | None:
+        if not v:
+            return None
+        s = str(v).strip().lower()
+        # etiquetas de UI → valores de tu BD
+        mapping = {
+            'elevador': 'equipos_altura',
+            'elevadores': 'equipos_altura',
+            'altura': 'equipos_altura',
+            'camion': 'camiones',
+            'camiones': 'camiones',
+            'otro': 'equipos_carga',
+            'carga': 'equipos_carga',
+            'generico': 'equipos_carga',
+        }
+        return mapping.get(s, s)  # si ya viene 'equipos_altura', 'camiones' o 'equipos_carga', lo respeta
+
+    def _clean_blank_to_none(self, data: dict, keys: list[str]):
+        for k in keys:
+            if data.get(k, None) == '':
+                data[k] = None
+
+    # ---------- fields calculados ----------
     def get_obra(self, obj):
         arriendo_activo = obj.arriendos.filter(estado="Activo").select_related("obra").order_by('-fecha_inicio').first()
         if arriendo_activo and arriendo_activo.obra:
             return arriendo_activo.obra.nombre
         return "Bodega"
+
+    # ---------- validación principal ----------
+    def validate(self, attrs):
+        # Mezcla con instancia (en updates) para validar con estado completo
+        base = {}
+        if self.instance:
+            # sólo tomamos campos del serializer
+            for f in self.fields.keys():
+                if hasattr(self.instance, f):
+                    base[f] = getattr(self.instance, f)
+        data = {**base, **attrs}
+
+        # Normaliza categoría desde la UI
+        data['categoria'] = self._canon_categoria(data.get('categoria'))
+
+        # Limpia textos vacíos → None
+        self._clean_blank_to_none(data, ['modelo', 'serie', 'descripcion', 'estado'])
+
+        # Reglas por categoría
+        cat = data.get('categoria')
+
+        # ELEVADOR (equipos_altura): no usa carga/tonelaje, sí puede usar altura
+        if cat == 'equipos_altura':
+            data['carga'] = None
+            data['tonelaje'] = None
+            # altura opcional pero si viene, debe ser >= 0
+            if data.get('altura') is not None:
+                try:
+                    if float(data['altura']) < 0:
+                        raise serializers.ValidationError({'altura': 'La altura no puede ser negativa.'})
+                except (TypeError, ValueError):
+                    raise serializers.ValidationError({'altura': 'Altura debe ser numérica.'})
+
+        # CAMIÓN (camiones): no usa altura; si mandas sólo "carga" la mapeamos a "tonelaje"
+        elif cat == 'camiones':
+            data['altura'] = None
+            # Si sólo llega 'carga' (kg/ton), úsala como tonelaje si 'tonelaje' no viene
+            if data.get('tonelaje') is None and data.get('carga') is not None:
+                data['tonelaje'] = data['carga']
+
+            # Validaciones suaves (opcionales)
+            for key in ('tonelaje', 'carga', 'anio'):
+                if data.get(key) is not None:
+                    try:
+                        float(data[key])
+                    except (TypeError, ValueError):
+                        raise serializers.ValidationError({key: f'{key.capitalize()} debe ser numérico.'})
+
+        # OTRO (equipos_carga u omiso): todo opcional; sin reglas extra
+        else:
+            pass
+
+        # Marca requerida siempre (como en Django admin)
+        marca = (data.get('marca') or '').strip()
+        if not marca:
+            raise serializers.ValidationError({'marca': 'La marca es obligatoria.'})
+        data['marca'] = marca
+
+        # Devolvemos sólo lo que pertenece al serializer
+        cleaned = {k: v for k, v in data.items() if k in self.fields}
+        return cleaned
 
 
 class ObraSerializer(serializers.ModelSerializer):

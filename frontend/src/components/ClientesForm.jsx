@@ -1,223 +1,234 @@
-// src/components/ClientesForm.jsx
+// src/components/MaquinariaForm.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
+import { toast } from "react-toastify";
 
-const PAGO_OPCIONES = [
-  { value: "", label: "—" },
-  { value: "Contado", label: "Pago contado" },
-  { value: "15 días", label: "Pago a 15 días" },
-  { value: "30 días", label: "Pago a 30 días" },
+const ESTADOS = [
+  { value: "Disponible", label: "Disponible" },
+  { value: "Para venta", label: "Para venta" },
 ];
 
-export default function ClientesForm({ initialData = null, onSaved, setView }) {
+export default function MaquinariaForm({ setView, selectedMaquina, setSelectedMaquina }) {
+  const editMode = !!selectedMaquina?.id; // si venimos a editar
   const { auth, backendURL } = useAuth();
 
-  // Si viene initialData => modo edición
-  const isEdit = !!initialData?.id;
+  const [tipo, setTipo] = useState("elevadores"); // elevadores | camion | otro
+  const [marca, setMarca] = useState("");
+  const [modelo, setModelo] = useState("");
+  const [serie, setSerie] = useState("");
+  const [altura, setAltura] = useState("");   // elevadores
+  const [carga, setCarga] = useState("");     // camión / otro
+  const [descripcion, setDescripcion] = useState("");
+  const [estado, setEstado] = useState("Disponible");
 
-  const [form, setForm] = useState({
-    razon_social: "",
-    rut: "",
-    direccion: "",
-    telefono: "",
-    correo_electronico: "",
-    forma_pago: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  // “permiso especial” transitorio: solo superadmin puede cambiar forma de pago
-  const canChangePago = !!auth?.user?.is_superuser;
-
+  // Al editar, precarga
   useEffect(() => {
-    if (initialData) {
-      setForm({
-        razon_social: initialData.razon_social || "",
-        rut: initialData.rut || "",
-        direccion: initialData.direccion || "",
-        telefono: initialData.telefono || "",
-        correo_electronico: initialData.correo_electronico || "",
-        forma_pago: initialData.forma_pago || "",
-      });
-    }
-  }, [initialData]);
+    if (!editMode) return;
+    const m = selectedMaquina || {};
+    // Deducción de tipo por categoria
+    const cat = m.categoria || "";
+    if (cat === "equipos_altura") setTipo("elevadores");
+    else if (cat === "camiones") setTipo("camion");
+    else setTipo("otro");
 
-  const setVal = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+    setMarca(m.marca || "");
+    setModelo(m.modelo || "");
+    setSerie(m.serie || "");
+    setAltura(m.altura ?? "");
+    setCarga(m.carga ?? m.tonelaje ?? ""); // compat
+    setDescripcion(m.descripcion || "");
+    setEstado(m.estado || "Disponible");
+  }, [editMode, selectedMaquina]);
 
-  const endpoint = useMemo(() => {
-    const base = `${backendURL}/clientes`;
-    return isEdit ? `${base}/${initialData.id}` : base;
-  }, [isEdit, backendURL, initialData]);
+  const categoria = useMemo(() => {
+    if (tipo === "elevadores") return "equipos_altura";
+    if (tipo === "camion") return "camiones";
+    return "equipos_carga"; // usa la que tengas para "otro"
+  }, [tipo]);
 
-  const method = isEdit ? "PUT" : "POST";
-
-  const save = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const res = await authFetch(endpoint, {
-        token: auth.access,
-        method,
-        json: form,
-      });
-      if (!res.ok) {
-        let msg = `Error ${res.status}`;
-        try { const j = await res.json(); msg = j.detail || JSON.stringify(j); } catch {}
-        throw new Error(msg);
+  const validar = () => {
+    if (tipo === "elevadores") {
+      if (!marca || !modelo || !serie || !altura) {
+        toast.error("Faltan campos obligatorios para Elevadores (marca, modelo, serie, altura).");
+        return false;
       }
-      const data = await res.json().catch(() => ({}));
-      return data;
-    } finally {
-      setSaving(false);
     }
+    if (tipo === "camion") {
+      if (!marca || !modelo || !serie || !carga) {
+        toast.error("Faltan campos obligatorios para Camión (marca, modelo, serie, carga).");
+        return false;
+      }
+    }
+    // tipo "otro": todo opcional
+    return true;
   };
 
-  // Botones
-  const onGuardar = async () => {
-    const saved = await save();
-    // volver al listado/búsqueda
-    setView?.("buscar-cliente");
-    onSaved?.(saved);
+  const buildPayload = () => {
+    const payload = {
+      categoria,
+      marca: (marca || "").trim(),
+      modelo: (modelo || "").trim(),
+      serie: (serie || "").trim(),
+      descripcion: (descripcion || "").trim() || null,
+      estado: estado || "Disponible",
+    };
+    if (tipo === "elevadores") {
+      payload.altura = altura ? Number(altura) : null;
+      payload.carga = null;
+      payload.tonelaje = null;
+      payload.combustible = payload.combustible ?? null;
+    } else if (tipo === "camion") {
+      payload.carga = carga ? Number(carga) : null;   // puedes usar tonelaje si tu modelo lo llama así
+      payload.altura = null;
+    } else {
+      // otro: todo opcional
+      payload.altura = altura ? Number(altura) : null;
+      payload.carga = carga ? Number(carga) : null;
+    }
+    return payload;
   };
 
-  const onGuardarYAgregarOtro = async () => {
-    await save();
-    // limpiar formulario para agregar otro
-    setForm({
-      razon_social: "",
-      rut: "",
-      direccion: "",
-      telefono: "",
-      correo_electronico: "",
-      forma_pago: "",
-    });
-  };
+  const save = async (opts = { stayEditing: false, addAnother: false }) => {
+    if (!validar()) return;
+    const payload = buildPayload();
 
-  const onGuardarYSeguirEditando = async () => {
-    const saved = await save();
-    // quedarse en pantalla con datos guardados (mantener modo edición si aplica)
-    if (saved?.id) {
-      setForm((f) => ({ ...f })); // fuerza rerender
+    try {
+      const url = editMode
+        ? `${backendURL}/maquinarias/${selectedMaquina.id}`
+        : `${backendURL}/maquinarias`;
+      const method = editMode ? "PUT" : "POST";
+
+      const res = await authFetch(url, { token: auth?.access, method, json: payload });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || "No se pudo guardar la maquinaria");
+      }
+      const data = await res.json().catch(() => null);
+      toast.success(editMode ? "Maquinaria actualizada." : "Maquinaria creada.");
+
+      if (opts.addAnother) {
+        // limpiar para crear otra
+        setMarca(""); setModelo(""); setSerie(""); setAltura(""); setCarga("");
+        setDescripcion(""); setEstado("Disponible");
+        if (!editMode) setTipo("elevadores");
+        return;
+      }
+
+      if (opts.stayEditing) {
+        // quedarse editando
+        if (data?.id) setSelectedMaquina?.(data);
+        return;
+      }
+
+      // volver a la lista
+      setView?.("maquinarias-list");
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Error al guardar la maquinaria");
     }
   };
 
   return (
     <>
-      <div className="page-header">
-        <h1 className="page-title">{isEdit ? "Editar cliente" : "Añadir cliente"}</h1>
-        <div className="breadcrumbs">Clientes / {isEdit ? "Editar" : "Añadir"}</div>
-      </div>
-
       <div className="admin-card">
         <div className="fieldset">
-          <div className="legend">Información del cliente</div>
+          <div className="legend">{editMode ? "Editar maquinaria" : "Añadir maquinaria"}</div>
 
-          {/* Razon Social */}
+          {/* Tipo */}
           <div className="form-row">
-            <div className="label">Razón social:</div>
+            <div className="label">Tipo</div>
             <div className="control">
-              <input
-                className="input"
-                value={form.razon_social}
-                onChange={(e) => setVal("razon_social", e.target.value)}
-                autoFocus
-              />
-            </div>
-          </div>
-
-          {/* RUT */}
-          <div className="form-row">
-            <div className="label">Rut:</div>
-            <div className="control">
-              <input
-                className="input"
-                value={form.rut}
-                onChange={(e) => setVal("rut", e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Dirección */}
-          <div className="form-row">
-            <div className="label">Dirección:</div>
-            <div className="control">
-              <input
-                className="input"
-                value={form.direccion}
-                onChange={(e) => setVal("direccion", e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Teléfono */}
-          <div className="form-row">
-            <div className="label">Teléfono:</div>
-            <div className="control">
-              <input
-                className="input"
-                value={form.telefono}
-                onChange={(e) => setVal("telefono", e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Correo */}
-          <div className="form-row">
-            <div className="label">Correo electrónico:</div>
-            <div className="control">
-              <input
-                className="input"
-                type="email"
-                value={form.correo_electronico}
-                onChange={(e) => setVal("correo_electronico", e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Forma de Pago (bloqueable) */}
-          <div className="form-row">
-            <div className="label">Forma de pago:</div>
-            <div className="control">
-              <select
-                className="select"
-                value={form.forma_pago}
-                onChange={(e) => setVal("forma_pago", e.target.value)}
-                disabled={!canChangePago}
-                title={!canChangePago ? "Requiere permiso especial" : undefined}
-              >
-                {PAGO_OPCIONES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
+              <select className="select" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                <option value="elevadores">Elevadores</option>
+                <option value="camion">Camión</option>
+                <option value="otro">Otro</option>
               </select>
-              {!canChangePago && (
-                <small className="help-text">
-                  No tienes permiso para modificar la forma de pago.
-                </small>
-              )}
+              <div className="help-text">Ajusta los campos visibles según el tipo.</div>
+            </div>
+          </div>
+
+          {/* Marca */}
+          <div className="form-row">
+            <div className="label">Marca</div>
+            <div className="control">
+              <input className="input" value={marca} onChange={(e)=>setMarca(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Modelo */}
+          <div className="form-row">
+            <div className="label">Modelo</div>
+            <div className="control">
+              <input className="input" value={modelo} onChange={(e)=>setModelo(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Serie */}
+          <div className="form-row">
+            <div className="label">Serie</div>
+            <div className="control">
+              <input className="input" value={serie} onChange={(e)=>setSerie(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Altura (solo elevadores y opcional en “otro”) */}
+          {(tipo === "elevadores" || tipo === "otro") && (
+            <div className="form-row">
+              <div className="label">Altura (m)</div>
+              <div className="control">
+                <input className="input" type="number" step="0.01" value={altura} onChange={(e)=>setAltura(e.target.value)} />
+                {tipo === "elevadores" ? (
+                  <div className="help-text">Obligatorio en elevadores.</div>
+                ) : <div className="help-text">Opcional.</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Carga (t) (obligatorio en camión; opcional en “otro”) */}
+          {(tipo === "camion" || tipo === "otro") && (
+            <div className="form-row">
+              <div className="label">Carga (t)</div>
+              <div className="control">
+                <input className="input" type="number" step="0.01" value={carga} onChange={(e)=>setCarga(e.target.value)} />
+                {tipo === "camion" ? (
+                  <div className="help-text">Obligatorio en camión.</div>
+                ) : <div className="help-text">Opcional.</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Descripción (opcional) */}
+          <div className="form-row">
+            <div className="label">Descripción</div>
+            <div className="control">
+              <textarea className="textarea" rows={3} value={descripcion} onChange={(e)=>setDescripcion(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Estado */}
+          <div className="form-row">
+            <div className="label">Estado</div>
+            <div className="control">
+              <select className="select" value={estado} onChange={(e)=>setEstado(e.target.value)}>
+                {ESTADOS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Barra de acciones a la izquierda, sin “Cancelar” */}
+        {/* Acciones al estilo Django (izquierda) */}
         <div className="actions-bar">
-          <button className="btn btn-primary" onClick={onGuardar} disabled={saving}>
-            {saving ? "Guardando…" : "GUARDAR"}
+          <button className="btn btn-primary" onClick={() => save({ stayEditing: false, addAnother: false })}>
+            GUARDAR
           </button>
-          <button className="btn btn-ghost" onClick={onGuardarYAgregarOtro} disabled={saving}>
+          <button className="btn btn-ghost" onClick={() => save({ addAnother: true })}>
             Guardar y añadir otro
           </button>
-          <button className="btn btn-ghost" onClick={onGuardarYSeguirEditando} disabled={saving}>
+          <button className="btn btn-ghost" onClick={() => save({ stayEditing: true })}>
             Guardar y continuar editando
           </button>
         </div>
-
-        {error && (
-          <div className="fieldset">
-            <div className="legend">Error</div>
-            <div className="muted">{error}</div>
-          </div>
-        )}
       </div>
     </>
   );

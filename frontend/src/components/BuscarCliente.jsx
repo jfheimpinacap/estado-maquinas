@@ -31,6 +31,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
       setResultados([]);
     }
   };
+
   const handleLimpiar = () => {
     setQuery("");
     setResultados([]);
@@ -40,40 +41,43 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
 
   return (
     <>
-      {/* Fieldset de parámetros */}
-      <div className="admin-card" style={{marginBottom: 14}}>
-        <div className="fieldset">
-          <div className="legend">Parámetros</div>
-          <div className="form-row">
-            <div className="label">Término</div>
-            <div className="control">
-              <input
-                className="input"
-                placeholder="Razón social o RUT"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
-              />
-              <small className="help-text">Presiona Enter para buscar rápidamente.</small>
-            </div>
-          </div>
-          <div className="form-row" style={{gridTemplateColumns:"14rem 1fr"}}>
-            <div className="label" />
-            <div className="control" style={{display:"flex", gap:8}}>
-              <button className="btn btn-primary" onClick={handleBuscar}>Buscar</button>
-              <button className="btn btn-ghost" onClick={handleLimpiar}>Limpiar</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Resultados + Filtros (grid como Django) */}
+      {/* Grid: izquierda (Parámetros + Resultados) / derecha (Filtro) */}
       <div className="main-grid">
+        {/* Columna izquierda */}
         <div>
+          {/* Parámetros */}
+          <div className="admin-card" style={{ marginBottom: 14 }}>
+            <div className="fieldset">
+              <div className="legend">Parámetros</div>
+
+              <div className="form-row">
+                <div className="label">Término</div>
+                <div className="control search-compact">
+                  <input
+                    className="input"
+                    placeholder="Razón social o RUT"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
+                  />
+                  <small className="help-text">Presiona Enter para buscar rápidamente.</small>
+                </div>
+              </div>
+
+              <div className="form-row" style={{ gridTemplateColumns: "14rem 1fr" }}>
+                <div className="label" />
+                <div className="control" style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-primary" onClick={handleBuscar}>Buscar</button>
+                  <button className="btn btn-ghost" onClick={handleLimpiar}>Limpiar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Resultados (mismo ancho que Parámetros) */}
           <div className="admin-card">
             <div className="fieldset">
               <div className="legend">Resultados</div>
-
               <table className="dja-table">
                 <thead>
                   <tr>
@@ -89,7 +93,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                 <tbody>
                   {resultados.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{padding:"14px", textAlign:"center", color:"var(--muted)"}}>
+                      <td colSpan={7} style={{ padding: "14px", textAlign: "center", color: "var(--muted)" }}>
                         Ingresa un término de búsqueda o no hay resultados.
                       </td>
                     </tr>
@@ -117,22 +121,22 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
           </div>
         </div>
 
-        {/* Filtros a la derecha (placeholder funcional) */}
+        {/* Columna derecha: Filtro */}
         <aside className="admin-filter">
           <div className="admin-filter__title">FILTRO</div>
-          <div style={{padding:8}}>
+          <div style={{ padding: 8 }}>
             <details open>
-              <summary style={{cursor:"pointer", fontWeight:800}}>Mostrar recuentos</summary>
+              <summary>Mostrar recuentos</summary>
               <div className="mt-1 text-muted">—</div>
             </details>
 
             <details className="mt-2" open>
-              <summary style={{cursor:"pointer", fontWeight:800}}>Por forma de pago</summary>
-              <ul style={{marginTop:6, paddingLeft:16, lineHeight:1.8}}>
-                <li><button className="topbar__btn" onClick={()=>alert("Filtro: Todo")}>Todo</button></li>
-                <li><button className="topbar__btn" onClick={()=>alert("Pago a 15 días")}>Pago a 15 días</button></li>
-                <li><button className="topbar__btn" onClick={()=>alert("Pago a 30 días")}>Pago a 30 días</button></li>
-                <li><button className="topbar__btn" onClick={()=>alert("Pago contado")}>Pago contado</button></li>
+              <summary>Por forma de pago</summary>
+              <ul style={{ marginTop: 6, paddingLeft: 16, lineHeight: 1.8 }}>
+                <li><button onClick={() => alert("Filtro: Todo")}>Todo</button></li>
+                <li><button onClick={() => alert("Pago a 15 días")}>Pago a 15 días</button></li>
+                <li><button onClick={() => alert("Pago a 30 días")}>Pago a 30 días</button></li>
+                <li><button onClick={() => alert("Pago contado")}>Pago contado</button></li>
               </ul>
             </details>
           </div>
@@ -141,6 +145,8 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
     </>
   );
 }
+
+
 
 
 

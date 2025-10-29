@@ -1,4 +1,5 @@
 // src/components/ClientesList.jsx
+import AdminLayout from "./layout/AdminLayout";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";

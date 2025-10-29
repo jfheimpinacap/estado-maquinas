@@ -44,7 +44,7 @@ export default function Sidebar({ setView }) {
       <Section title="MAQUINARIA">
         <Row
           label="Maquinarias"
-          onClick={() => setView("buscarMaquina")}
+          onClick={() => setView("maquinarias-list")}
           onAdd={() => setView("crearMaquinaria")}
         />
         <Row

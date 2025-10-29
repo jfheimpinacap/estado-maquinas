@@ -1,4 +1,5 @@
 // src/components/BuscarMaquina.jsx
+import AdminLayout from "./layout/AdminLayout";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";

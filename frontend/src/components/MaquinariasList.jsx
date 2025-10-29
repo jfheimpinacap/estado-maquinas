@@ -1,8 +1,10 @@
+// src/components/MaquinariasList.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
+import AdminLayout from "./layout/AdminLayout"; // <-- IMPORTANTE
 
-export default function MaquinariasList({ setView }) {
+export default function MaquinariasList({ setView, setSelectedMaquina }) {
   const [maquinarias, setMaquinarias] = useState([]);
   const [q, setQ] = useState("");
   const [categoria, setCategoria] = useState("");      // '', 'equipos_altura', 'camiones', 'equipos_carga'
@@ -70,8 +72,8 @@ export default function MaquinariasList({ setView }) {
       breadcrumbs={<>Maquinaria / Lista</>}
       actions={actions}
     >
-      {/* Filtros */}
-      <div className="fieldset">
+      {/* Filtros superiores (compacto) */}
+      <div className="fieldset search-compact">
         <div className="legend">Filtros</div>
 
         <div className="form-row">
@@ -96,9 +98,9 @@ export default function MaquinariasList({ setView }) {
               onChange={(e) => setCategoria(e.target.value)}
             >
               <option value="">Todas</option>
-              <option value="equipos_altura">Equipos para trabajo en altura</option>
+              <option value="equipos_altura">Elevadores</option>
               <option value="camiones">Camiones</option>
-              <option value="equipos_carga">Equipos para carga</option>
+              <option value="equipos_carga">Otros (carga)</option>
             </select>
           </div>
         </div>
@@ -134,7 +136,7 @@ export default function MaquinariasList({ setView }) {
         </div>
       </div>
 
-      {/* Lista */}
+      {/* Resultados */}
       <div className="fieldset">
         <div className="legend">Resultados</div>
         {filtradas.length === 0 ? (
@@ -146,21 +148,24 @@ export default function MaquinariasList({ setView }) {
             <thead>
               <tr>
                 <th>Equipo</th>
+                <th>Tijera/Brazo</th>
+                <th>Eléctrica/Diésel</th>
                 <th>Datos</th>
                 <th>Descripción</th>
                 <th>Categoría / ID</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtradas.map((m) => {
                 const cat = m.categoria || "";
-                let datos = null;
+                const esElevador = cat === "equipos_altura";
 
+                let datos = null;
                 if (cat === "equipos_altura") {
                   datos = (
                     <>
                       {m.altura != null && <span>Altura: {fmt(m.altura)} m</span>}
-                      {m.combustible ? <> · <span>Combustible: {m.combustible}</span></> : null}
                       {m.serie ? <> · <span>Serie: {m.serie}</span></> : null}
                     </>
                   );
@@ -175,16 +180,14 @@ export default function MaquinariasList({ setView }) {
                 } else if (cat === "equipos_carga") {
                   datos = (
                     <>
-                      {m.carga ? <span>Carga: {fmt(m.carga)} t</span> : null}
+                      {m.carga ? <span>Carga: {fmt(m.carga)} kg</span> : null}
                       {m.estado ? <> · <span>Estado: {m.estado}</span></> : null}
                     </>
                   );
                 } else {
-                  // Compat: datos antiguos sin categoría
                   datos = (
                     <>
                       {m.serie ? <span>Serie: {m.serie}</span> : null}
-                      {m.altura ? <> · <span>Altura: {fmt(m.altura)} m</span></> : null}
                       {m.estado ? <> · <span>Estado: {m.estado}</span></> : null}
                     </>
                   );
@@ -193,12 +196,26 @@ export default function MaquinariasList({ setView }) {
                 return (
                   <tr key={m.id}>
                     <td style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
-                      {m.marca} {m.modelo ? `- ${m.modelo}` : ""}
+                      {m.marca} {m.modelo ? `- ${m.modelo}` : "" }
                     </td>
+                    <td>{esElevador ? (m.tipo_altura || "—") : "—"}</td>
+                    <td>{esElevador ? (m.combustible || "—") : (m.combustible || "—")}</td>
                     <td>{datos}</td>
                     <td>{m.descripcion || "—"}</td>
-                    <td className="text-sm opacity-70">
-                      {cat || "—"} {m.id ? `· ID ${m.id}` : ""}
+                    <td className="text-sm opacity-70">{cat || "—"} {m.id ? `· ID ${m.id}` : ""}</td>
+                    <td style={{ whiteSpace: "nowrap", display: "flex", gap: 6 }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => { setSelectedMaquina?.(m); setView?.("editar-maquina"); }}
+                      >
+                        Ver máquina
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => { setSelectedMaquina?.(m); setView?.("ver-maquina"); }}
+                      >
+                        Ficha técnica
+                      </button>
                     </td>
                   </tr>
                 );
@@ -210,5 +227,9 @@ export default function MaquinariasList({ setView }) {
     </AdminLayout>
   );
 }
+
+
+
+
 
 

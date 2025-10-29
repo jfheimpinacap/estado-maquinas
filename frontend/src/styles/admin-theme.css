@@ -24,7 +24,7 @@
   --input-border:#39424e;
   --focus-ring:#f1842d66;
 
-  --accent:#C94217;         /* tu color corporativo */
+  --accent:#C94217;         /* color corporativo */
   --accent-contrast:#ffffff;
   --accent-hover:#e75425;
 
@@ -71,7 +71,7 @@ body{
    ================= */
 .topbar{
   position:sticky;
-  inset:0 0 auto 0;               /* stick al top */
+  top:0;
   height:var(--topbar-h);
   display:flex; align-items:center; justify-content:space-between;
   padding:0 .9rem;
@@ -79,7 +79,11 @@ body{
   color:var(--topbar-text);
   border-bottom:1px solid rgba(0,0,0,.25);
   z-index:50;
-  width:100%;
+
+  /* full-bleed real (si algún wrapper centra contenido) */
+  width:100vw;
+  margin-left:calc(50% - 50vw);
+  margin-right:calc(50% - 50vw);
 }
 .topbar__brand{ font-weight:800; letter-spacing:.2px; font-size:1rem }
 .topbar__links{ display:flex; gap:12px; align-items:center; font-size:.92rem }
@@ -138,8 +142,8 @@ body{
 .admin-main{
   background:var(--bg);
   padding:1rem 1.25rem 2rem;
-  max-width:none;        /* usar todo el ancho (como Django) */
-  margin:0;              /* sin centrar contenedor */
+  max-width:none;
+  margin:0;
   color:var(--text);
 }
 
@@ -166,13 +170,14 @@ body{
 
 /* Form compact */
 .form-row{
-  display:grid; grid-template-columns:12rem 1fr;
+  display:grid; grid-template-columns:12rem 1fr; /* etiqueta / control */
   gap:.75rem; align-items:start; padding:.45rem 0;
 }
 .form-row .label{ font-weight:700; padding-top:.45rem }
 .form-row .control{ display:grid; gap:.3rem }
 .help-text{ font-size:.83rem; color:var(--muted) }
 
+/* Inputs base */
 .input,.select,.textarea{
   width:100%;
   background:var(--input-bg);
@@ -186,13 +191,30 @@ body{
   outline:none; box-shadow:0 0 0 3px var(--focus-ring); border-color:var(--accent);
 }
 
-/* Botones */
+/* ===== Ajuste clave: inputs NO a pantalla completa (look Django) ===== */
+.admin-card .control > .input,
+.admin-card .control > .select,
+.admin-card .control > .textarea{
+  max-width:560px; /* << aquí acortamos */
+}
+
+/* ===== Barra de acciones (botones a la izquierda) ===== */
+.actions-bar{
+  display:flex; gap:.5rem;
+  padding:.6rem .4rem;
+  border-top:1px solid var(--card-border);
+  background:transparent;
+  justify-content:flex-start; /* << izquierda */
+}
+
+/* Botones (Segoe UI + primario en mayúsculas) */
 .btn{
   appearance:none; border:1px solid transparent;
   border-radius:var(--radius-sm);
   padding:.42rem .7rem; font-weight:800; cursor:pointer; font-size:.95rem;
+  font-family:"Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
 }
-.btn-primary{ background:var(--accent); color:var(--accent-contrast) }
+.btn-primary{ background:var(--accent); color:var(--accent-contrast); text-transform:uppercase }
 .btn-primary:hover{ background:var(--accent-hover) }
 .btn-ghost{ background:transparent; color:var(--text); border-color:var(--card-border) }
 .btn-ghost:hover{ background:rgba(255,255,255,.04) }
@@ -220,7 +242,7 @@ body{
 }
 
 /* =========================
-   Panel de filtro a la derecha
+   Resultados + Filtro derecha
    ========================= */
 .main-grid{
   display:grid;
@@ -256,6 +278,9 @@ body{
 }
 .admin-filter button:hover{ color:var(--link-hover); text-decoration:underline }
 
+/* ===== Compactar campo de búsqueda (como Django) ===== */
+.search-compact .input{ max-width:520px }
+
 /* =================
    Login centrado
    ================= */
@@ -290,9 +315,7 @@ body{
 }
 .pwd-toggle:hover{ color:#fff; background:rgba(255,255,255,.06) }
 
-/* ===========
-   Responsive
-   =========== */
+/* =========== Responsive =========== */
 @media (max-width: 1200px){
   :root{ --sidebar-w:210px; }
 }
@@ -323,8 +346,80 @@ body{
   .login-card{ padding:.9rem; }
 }
 
-/* === Full-bleed robusto (topbar y contenido) === */
-/* El topbar no se renderiza en /login, así que el bleed no afecta al login */
+/* ====== PATCH GLOBAL (añadir al final) ====== */
+
+/* Tipografía de títulos y botones = Segoe UI (sin negrita) */
+:root{
+  --title-font: "Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+/* Títulos (encabezado, leyendas, bloques sidebar, título filtro, marca topbar) */
+.page-title,
+.legend,
+.dja-section__title,
+.admin-filter__title,
+.topbar__brand{
+  font-family: var(--title-font);
+  font-weight: 500;          /* sin negrita */
+}
+
+/* Botones: Segoe UI + sin negrita */
+.btn{
+  font-family: var(--title-font) !important;
+  font-weight: 500 !important;     /* sin negrita */
+  text-transform: none;            /* no forzar mayúsculas por CSS */
+}
+/* Si quieres que el primario vaya en MAYÚSCULAS (como “GUARDAR”), actívalo: */
+/* .btn-primary{ text-transform: uppercase; } */
+
+/* Topbar full-bleed real, pase lo que pase */
+.topbar{
+  width: 100vw !important;
+  margin-left: calc(50% - 50vw) !important;
+  margin-right: calc(50% - 50vw) !important;
+}
+
+/* El layout usa TODO el ancho disponible */
+.admin-root, .admin-body, .admin-main{ width:100% !important; max-width:100% !important; }
+
+/* Neutraliza contenedores que estrechan el contenido */
+.container-wide, .container-narrow, [class*="container"]{
+  max-width: none !important; width: 100% !important; margin: 0 !important; padding: 0 !important;
+}
+
+/* === Robustez Topbar a pantalla completa === */
+.topbar{
+  position: sticky;
+  top: 0;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+/* === Tipografías al estilo Django (Segoe UI, sin negrita) === */
+.btn,
+.page-title,
+.legend,
+.dja-section__title,
+.admin-filter__title {
+  font-family: "Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif !important;
+  font-weight: 400 !important; /* sin negrita */
+}
+
+.btn-primary { text-transform: uppercase; } /* si quieres la primaria en mayúsculas */
+
+/* Tipografía Segoe UI y sin negrita en títulos/botones */
+.page-title,
+.legend,
+.btn,
+.dja-row__label,
+.admin-filter__title {
+  font-family: "Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-weight: 400;
+}
+.btn { font-weight: 400; }
+
+/* Topbar full-bleed estable */
 .topbar{
   position: sticky;
   top: 0;
@@ -335,52 +430,29 @@ body{
   color: var(--topbar-text);
   border-bottom: 1px solid rgba(0,0,0,.25);
   z-index: 50;
-
-  /* Bleed hasta el borde de la ventana si algún wrapper centra el contenido */
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
 }
 
-/* Asegura que el layout use TODO el ancho disponible */
-.admin-root, .admin-body, .admin-main{
-  width: 100%;
-  max-width: 100%;
+/* Segoe UI y sin negrita */
+.page-title,.legend,.btn,.dja-row__label,.admin-filter__title{
+  font-family:"Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-weight:400;
+}
+.btn{ font-weight:400; }
+
+/* Botonera abajo, a la izquierda */
+.actions-bar{
+  display:flex; gap:.5rem;
+  padding:.6rem .4rem;
+  border-top:1px solid var(--card-border);
+  justify-content:flex-start;
 }
 
-/* Neutraliza cualquier "container" que limite ancho accidentalmente */
-.container-wide,
-.container-narrow,
-[class*="container"]{
-  max-width: none !important;
-  width: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
+/* Topbar full-bleed */
+.topbar{
+  width:100vw;
+  margin-left:calc(50% - 50vw);
+  margin-right:calc(50% - 50vw);
 }
-
-/* El área de trabajo ocupa todo hasta el filtro (como Django) */
-.admin-main{
-  background: var(--bg);
-  padding: 1rem 1.25rem 2rem;
-  margin: 0;
-}
-
-/* Grid resultados + filtro fijo tipo Django */
-.main-grid{
-  display: grid;
-  grid-template-columns: 1fr 300px; /* 300px filtro */
-  gap: 1rem;
-  align-items: start;
-}
-@media (max-width: 992px){
-  .main-grid{ grid-template-columns: 1fr; }
-}
-
-/* Login: centrado absoluto (por si algún estilo global lo empuja) */
-.login-shell{
-  position: fixed; inset: 0;
-  display: grid; place-items: center;
-  background: var(--bg);
-  z-index: 1;
-}
-.login-card{ margin: 1.2rem; }
