@@ -42,8 +42,7 @@ export default function MaquinariaForm({ setView }) {
   const [combustible, setCombustible] = useState("electrico");
 
   // camiones / carga / otro
-  const [carga, setCarga] = useState("");
-  const [tonelaje, setTonelaje] = useState("");
+  const [cargaKg, setCargaKg] = useState("");
 
   const [estado, setEstado] = useState("Disponible");
 
@@ -51,58 +50,64 @@ export default function MaquinariaForm({ setView }) {
   const esCamion   = useMemo(() => categoria === "camiones", [categoria]);
   const esCarga    = useMemo(() => categoria === "equipos_carga", [categoria]);
 
+  const sanitize = (s) => (typeof s === "string" ? s.trim() : s);
+
   const payload = () => {
+    const _marca = sanitize(marca);
     const p = {
-      marca: marca.trim(),
-      modelo: modelo.trim() || null,
-      serie:  serie.trim()  || null,
+      // marca SIEMPRE obligatoria
+      marca: _marca || undefined,
+      modelo: sanitize(modelo) || null,
+      serie:  sanitize(serie)  || null,
       categoria,
-      descripcion: descripcion.trim() || null,
+      descripcion: sanitize(descripcion) || null,
       estado,
+      // por defecto anulamos campos que no apliquen
+      altura: null,
+      tipo_altura: null,
+      combustible: null,
+      carga: null,
+      tonelaje: null,
     };
 
     if (esElevador) {
       p.altura = altura ? Number(altura) : null;
-      p.tipo_altura = tipoAltura || null;     // ← clave correcta
-      p.combustible = combustible || null;    // ← clave correcta
-      p.carga = null;
-      p.tonelaje = null;
-      // no usamos año aquí
+      p.tipo_altura = tipoAltura || null;
+      p.combustible = combustible || null;
     } else if (esCamion) {
-      p.altura = null;
-      p.tipo_altura = null;
-      p.combustible = null;
-      p.carga = carga ? Number(carga) : null;
-      // si sólo llega "carga", el backend ya puede mapear a tonelaje; aquí permitimos ambos:
-      p.tonelaje = tonelaje ? Number(tonelaje) : null;
+      // CARGA en KG
+      p.carga = cargaKg ? Number(cargaKg) : null;
+      // altura/tipo/combustible no aplican para camión
     } else if (esCarga) {
-      p.altura = null;
-      p.tipo_altura = null;
-      p.combustible = null;
-      p.carga = carga ? Number(carga) : null;
-      p.tonelaje = tonelaje ? Number(tonelaje) : null;
+      p.carga = cargaKg ? Number(cargaKg) : null;
     } else {
-      // "otro": todo opcional
-      p.altura = null;
-      p.tipo_altura = null;
-      p.combustible = null;
-      p.carga = carga ? Number(carga) : null;
-      p.tonelaje = tonelaje ? Number(tonelaje) : null;
+      // "otro": todo opcional (dejamos carga si se ingresó)
+      p.carga = cargaKg ? Number(cargaKg) : null;
     }
     return p;
   };
 
   const create = async () => {
     const url = `${backendURL}/maquinarias`;
+    const body = JSON.stringify(payload());
     const res = await authFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       token: auth?.access,
-      body: JSON.stringify(payload()),
+      body,
     });
     if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw new Error(txt || `Error ${res.status} creando maquinaria`);
+      // intenta leer JSON de error del DRF
+      let msg = `Error ${res.status} creando maquinaria`;
+      try {
+        const data = await res.json();
+        msg = JSON.stringify(data);
+      } catch {
+        try {
+          msg = await res.text();
+        } catch {}
+      }
+      throw new Error(msg);
     }
     return res.json();
   };
@@ -111,12 +116,12 @@ export default function MaquinariaForm({ setView }) {
     setCategoria("equipos_altura");
     setMarca(""); setModelo(""); setSerie(""); setDescripcion("");
     setAltura(""); setTipoAltura("tijera"); setCombustible("electrico");
-    setCarga(""); setTonelaje("");
+    setCargaKg("");
     setEstado("Disponible");
   };
 
   const onGuardar = async (addOtro = false) => {
-    if (!marca.trim()) {
+    if (!sanitize(marca)) {
       toast.warn("La marca es obligatoria");
       return;
     }
@@ -124,7 +129,7 @@ export default function MaquinariaForm({ setView }) {
     try {
       await create();
       if (addOtro) {
-        resetForm(); // evita choque por serie repetida en la siguiente alta
+        resetForm();
         toast.success("Maquinaria creada. Puedes añadir otra.");
       } else {
         toast.success("Maquinaria creada");
@@ -176,19 +181,13 @@ export default function MaquinariaForm({ setView }) {
             </div>
           </div>
 
-          {/* Elevadores: altura + combos (mecanismo / combustible) */}
+          {/* Elevadores: altura + combos */}
           {esElevador && (
             <>
               <div className="form-row">
                 <div className="label">Altura (m)</div>
                 <div className="control">
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={altura}
-                    onChange={e=>setAltura(e.target.value)}
-                  />
+                  <input className="input" type="number" step="0.01" value={altura} onChange={e=>setAltura(e.target.value)} />
                 </div>
               </div>
 
@@ -212,46 +211,21 @@ export default function MaquinariaForm({ setView }) {
             </>
           )}
 
-          {/* Camiones / Carga / Otro: métricas de peso (opcionales) */}
+          {/* Camiones / Carga / Otro */}
           {(esCamion || esCarga || categoria === "otro") && (
-            <>
-              <div className="form-row">
-                <div className="label">Carga (t)</div>
-                <div className="control">
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={carga}
-                    onChange={e=>setCarga(e.target.value)}
-                  />
-                </div>
+            <div className="form-row">
+              <div className="label">Carga (kg)</div>
+              <div className="control">
+                <input className="input" type="number" step="1" value={cargaKg} onChange={e=>setCargaKg(e.target.value)} />
+                <div className="help-text">Ingresa la capacidad en kilogramos.</div>
               </div>
-
-              <div className="form-row">
-                <div className="label">Tonelaje (t)</div>
-                <div className="control">
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    value={tonelaje}
-                    onChange={e=>setTonelaje(e.target.value)}
-                  />
-                </div>
-              </div>
-            </>
+            </div>
           )}
 
           <div className="form-row">
             <div className="label">Descripción</div>
             <div className="control">
-              <textarea
-                className="textarea"
-                rows={3}
-                value={descripcion}
-                onChange={e=>setDescripcion(e.target.value)}
-              />
+              <textarea className="textarea" rows={3} value={descripcion} onChange={e=>setDescripcion(e.target.value)} />
             </div>
           </div>
 
@@ -278,6 +252,7 @@ export default function MaquinariaForm({ setView }) {
     </>
   );
 }
+
 
 
 
