@@ -28,6 +28,8 @@ import ConsultaDocumentos from "./components/ConsultaDocumentos";
 import InformesDocumentos from "./components/InformesDocumentos";
 
 import CrearOT from "./components/CrearOT";
+import EstadoOrdenes from "./components/EstadoOrdenes";
+
 import EstadoArriendoMaquinas from "./components/EstadoArriendoMaquinas";
 
 import { useAuth } from "./context/AuthContext";
@@ -120,7 +122,8 @@ function AdminShell({
           {view === "consulta-maquinarias" && <ConsultaMaquinarias />}
           {view === "consulta-documentos" && <ConsultaDocumentos />} 
           {view === "informes-documentos" && <InformesDocumentos />}
-          {view === "crear-ot" && <CrearOT />}
+          {view === "crear-ot" && <CrearOT setView={setView} />}
+          {view === "estado-ordenes" && <EstadoOrdenes setView={setView} />}
           {view === "estado-arriendo-maquinas" && <EstadoArriendoMaquinas />}
         </main>
       </div>
