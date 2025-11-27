@@ -197,20 +197,75 @@ OT_ESTADO = (
 )
 
 class OrdenTrabajo(models.Model):
-    arriendo   = models.ForeignKey("Arriendo", on_delete=models.PROTECT, related_name="ordenes", null=True, blank=True)
-    cliente    = models.ForeignKey("Cliente", on_delete=models.PROTECT, related_name="ordenes")
-    maquinaria = models.ForeignKey("Maquinaria", on_delete=models.PROTECT, related_name="ordenes", null=True, blank=True)
+    # Relaciones clásicas
+    arriendo   = models.ForeignKey(
+        "Arriendo",
+        on_delete=models.PROTECT,
+        related_name="ordenes",
+        null=True,
+        blank=True,
+    )
+    cliente    = models.ForeignKey(
+        "Cliente",
+        on_delete=models.PROTECT,
+        related_name="ordenes",
+    )
+    maquinaria = models.ForeignKey(
+        "Maquinaria",
+        on_delete=models.PROTECT,
+        related_name="ordenes",
+        null=True,
+        blank=True,
+    )
 
+    # Tipo técnico (mantiene compatibilidad con lo que ya tienes)
     tipo   = models.CharField(max_length=4, choices=OT_TIPO)
     estado = models.CharField(max_length=4, choices=OT_ESTADO, default="PEND")
+
+    # Tipo COMERCIAL (nuevo: A/V/T para folios Axxxx, Vxxxx, Txxxx)
+    TIPO_COMERCIAL = (
+        ("A", "Arriendo"),
+        ("V", "Venta"),
+        ("T", "Traslado"),
+    )
+    tipo_comercial = models.CharField(
+        max_length=1,
+        choices=TIPO_COMERCIAL,
+        blank=True,
+        null=True,
+        help_text="Tipo comercial: A=Arriendo, V=Venta, T=Traslado",
+    )
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_cierre   = models.DateTimeField(null=True, blank=True)
 
     # Lógica de facturación/documentación
     es_facturable = models.BooleanField(default=False)
-    factura = models.ForeignKey("Documento", on_delete=models.SET_NULL, null=True, blank=True, related_name="ot_facturadas")
-    guia    = models.ForeignKey("Documento", on_delete=models.SET_NULL, null=True, blank=True, related_name="ot_guias")
+    factura = models.ForeignKey(
+        "Documento",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ot_facturadas",
+    )
+    guia    = models.ForeignKey(
+        "Documento",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ot_guias",
+    )
+
+    # Información adicional
+    direccion = models.CharField(max_length=200, blank=True, null=True)
+    obra_nombre = models.CharField(max_length=200, blank=True, null=True)
+    contactos = models.TextField(blank=True, null=True)
+
+    # Detalle económico / líneas (múltiples máquinas por OT)
+    detalle_lineas = models.JSONField(default=list, blank=True)
+    monto_neto  = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    monto_iva   = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    monto_total = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 
     observaciones = models.TextField(blank=True, null=True)
 
@@ -220,6 +275,7 @@ class OrdenTrabajo(models.Model):
 
     def __str__(self):
         return f"OT #{self.id} [{self.get_tipo_display()}] – {self.get_estado_display()}"
+
 
 
 

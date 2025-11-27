@@ -23,7 +23,6 @@ import EditarMaquina from "./components/EditarMaquina";
 import ConsultaMaquinarias from "./components/ConsultaMaquinarias";
 
 import BuscarDocumentos from "./components/BuscarDocumentos";
-import EstadoOrdenes from "./components/EstadoOrdenes";
 import ConsultaDocumentos from "./components/ConsultaDocumentos";
 import InformesDocumentos from "./components/InformesDocumentos";
 

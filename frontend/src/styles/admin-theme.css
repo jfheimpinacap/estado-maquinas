@@ -346,8 +346,6 @@ body{
   .login-card{ padding:.9rem; }
 }
 
-/* ====== PATCH GLOBAL (añadir al final) ====== */
-
 /* Tipografía de títulos y botones = Segoe UI (sin negrita) */
 :root{
   --title-font: "Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
@@ -455,4 +453,376 @@ body{
   width:100vw;
   margin-left:calc(50% - 50vw);
   margin-right:calc(50% - 50vw);
+}
+
+/* ==========================
+   Crear OT – Layout específico
+   ========================== */
+
+.ot-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.ot-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.ot-summary {
+  position: sticky;
+  top: calc(var(--topbar-h) + 0.8rem);
+}
+
+.ot-summary-card {
+  box-shadow: var(--fx-2);
+}
+
+.ot-summary-item {
+  margin-bottom: 0.7rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.ot-summary-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.ot-summary-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  margin: 2px 0;
+}
+
+.ot-summary-total-line {
+  font-weight: 600;
+}
+
+.ot-summary-sep {
+  border: 0;
+  border-top: 1px solid var(--card-border);
+  margin: 0.6rem 0 0.4rem;
+}
+
+/* Serie + botones del mismo ancho */
+.ot-series-row .ot-series-control {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.input--serie {
+  max-width: 190px;
+}
+
+.ot-btn-buscar-serie,
+.ot-btn-eliminar,
+.ot-btn-add {
+  max-width: 190px;
+  width: 100%;
+}
+
+/* Periodo: unidad + cantidad en la misma fila */
+.ot-periodo-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  max-width: 360px;
+}
+
+.ot-cantidad-input {
+  max-width: 110px;
+}
+
+/* Fechas con icono de calendario */
+.ot-fechas-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ot-fechas-sep {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.date-wrapper {
+  position: relative;
+  max-width: 190px;
+  width: 100%;
+}
+
+.date-wrapper .input--date {
+  padding-right: 2rem;
+}
+
+.date-wrapper::after {
+  content: "📅";
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  pointer-events: none;
+  color: #ffffff;
+}
+
+/* Valores equipo + flete + tipo flete en línea */
+.ot-valores-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.2rem;
+}
+
+.ot-valor-input {
+  max-width: 150px;
+}
+
+/* Acciones por línea (eliminar máquina) */
+.ot-item-actions {
+  margin-top: 0.5rem;
+}
+
+/* Botón añadir otra máquina centrado al inicio de línea */
+.ot-add-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Responsive: resumen debajo en pantallas pequeñas */
+@media (max-width: 992px) {
+  .ot-layout {
+    grid-template-columns: 1fr;
+  }
+  .ot-summary {
+    position: static;
+  }
+}
+
+/* Aseguramos fila para las dos fechas (desde / hasta) */
+.ot-fechas-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* ===== Modal selección de máquina (Crear OT) ===== */
+
+.ot-modal-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.6);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:200;
+}
+
+.ot-modal{
+  background:var(--card-bg);
+  border:1px solid var(--card-border);
+  border-radius:var(--radius);
+  padding:1rem 1.2rem 1rem;
+  max-width:960px;
+  width:96%;
+  max-height:80vh;
+  box-shadow:var(--fx-2);
+  overflow:auto;
+}
+
+.ot-modal-header{
+  margin-bottom:.6rem;
+}
+.ot-modal-title{
+  font-family:"Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-weight:400;
+  font-size:1rem;
+}
+
+.ot-modal-columns{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:.75rem;
+}
+
+@media(max-width:900px){
+  .ot-modal-columns{
+    grid-template-columns:1fr;
+  }
+}
+
+.ot-modal-column-title{
+  font-weight:400;
+  margin-bottom:.3rem;
+  font-family:"Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+.ot-machine-list{
+  display:flex;
+  flex-direction:column;
+  gap:.3rem;
+}
+
+.ot-machine-empty{
+  font-size:.85rem;
+  color:var(--muted);
+}
+
+.ot-machine-item{
+  width:100%;
+  text-align:left;
+  border:1px solid var(--card-border);
+  border-radius:var(--radius-sm);
+  padding:.4rem .55rem;
+  background:rgba(255,255,255,.02);
+  cursor:pointer;
+  font-size:.88rem;
+}
+
+.ot-machine-item:hover{
+  border-color:var(--accent);
+}
+
+.ot-machine-item--selected{
+  border-color:var(--accent);
+  background:var(--accent);
+  color:#fff;
+}
+
+.ot-machine-title{
+  font-weight:400;
+}
+
+.ot-machine-meta{
+  font-size:.8rem;
+  opacity:.85;
+  margin-top:2px;
+}
+
+.ot-modal-footer{
+  margin-top:.9rem;
+  display:flex;
+  justify-content:flex-end;
+  gap:.5rem;
+}
+
+/* Ajustes pequeños serie + botón buscar */
+.ot-series-control{
+  display:flex;
+  gap:.4rem;
+  align-items:center;
+}
+
+.input--serie{
+  max-width:180px;
+}
+
+.ot-btn-buscar-serie{
+  white-space:nowrap;
+}
+
+/* Layout OT por si no lo tenías completo */
+.ot-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 3fr) minmax(260px, 1.4fr);
+  gap:1rem;
+  align-items:flex-start;
+}
+@media(max-width:1024px){
+  .ot-layout{
+    grid-template-columns:1fr;
+  }
+  .ot-summary{
+    order:-1;
+  }
+}
+
+.ot-main{
+  display:flex;
+  flex-direction:column;
+  gap:.75rem;
+}
+
+.ot-summary-card .legend{
+  margin-bottom:.4rem;
+}
+
+.ot-summary-item{
+  margin-bottom:.5rem;
+  padding-bottom:.4rem;
+  border-bottom:1px solid var(--card-border);
+}
+
+.ot-summary-title{
+  font-size:.9rem;
+  margin-bottom:.2rem;
+}
+
+.ot-summary-line{
+  display:flex;
+  justify-content:space-between;
+  font-size:.88rem;
+}
+.ot-summary-total-line{
+  font-weight:600;
+}
+.ot-summary-sep{
+  margin:.6rem 0;
+}
+
+.ot-item-actions{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:.4rem;
+}
+
+.ot-btn-add{
+  min-width:180px;
+}
+
+.ot-add-row{
+  display:flex;
+  justify-content:flex-start;
+}
+
+/* Fechas en una fila */
+.ot-fechas-row{
+  display:flex;
+  align-items:center;
+  gap:.4rem;
+  flex-wrap:wrap;
+}
+
+/* Periodo: unidad + cantidad */
+.ot-periodo-row{
+  display:flex;
+  gap:.4rem;
+  flex-wrap:wrap;
+}
+.ot-cantidad-input{
+  max-width:120px;
+}
+
+/* Date input con icono visible y clickeable */
+.date-wrapper{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+}
+
+input[type="date"]{
+  padding-right:2rem; /* deja espacio para el icono nativo */
+}
+
+/* Icono del date en claro (Chrome/WebKit) */
+input[type="date"]::-webkit-calendar-picker-indicator{
+  filter: invert(1);  /* lo vuelve claro/blanco sobre fondo oscuro */
+  cursor: pointer;
 }

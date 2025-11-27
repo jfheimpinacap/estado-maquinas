@@ -263,13 +263,36 @@ class OrdenTrabajoSerializer(serializers.ModelSerializer):
     factura = DocumentoRelacionSerializer(read_only=True)
     guia = DocumentoRelacionSerializer(read_only=True)
 
+    # NUEVOS: para mostrar también el tipo comercial legible
+    tipo_comercial_display = serializers.CharField(
+        source='get_tipo_comercial_display',
+        read_only=True
+    )
+
+    # NUEVO: líneas de detalle (multi-máquina)
+    detalle_lineas = serializers.JSONField(required=False)
+
     class Meta:
         model = OrdenTrabajo
         fields = [
-            'id', 'tipo', 'tipo_display', 'estado', 'estado_display',
-            'es_facturable', 'fecha_creacion', 'fecha_cierre',
-            'cliente', 'cliente_razon', 'arriendo', 'maquinaria', 'maquinaria_label',
-            'factura', 'guia', 'observaciones'
+            'id',
+            'tipo', 'tipo_display',
+            'tipo_comercial', 'tipo_comercial_display',
+            'estado', 'estado_display',
+            'es_facturable',
+            'fecha_creacion', 'fecha_cierre',
+
+            'cliente', 'cliente_razon',
+            'arriendo', 'maquinaria', 'maquinaria_label',
+
+            'factura', 'guia',
+            'observaciones',
+
+            # nuevos campos generales
+            'direccion', 'obra_nombre', 'contactos',
+
+            # nuevos campos económicos
+            'detalle_lineas', 'monto_neto', 'monto_iva', 'monto_total',
         ]
 
     def get_maquinaria_label(self, obj):
@@ -277,4 +300,5 @@ class OrdenTrabajoSerializer(serializers.ModelSerializer):
             m = obj.maquinaria
             return f"{m.marca} {m.modelo} ({m.serie})" if m.serie else f"{m.marca} {m.modelo}"
         return None
+
 
