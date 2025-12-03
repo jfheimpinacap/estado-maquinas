@@ -1,5 +1,5 @@
 // src/components/CrearOT.jsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
 import { toast } from "react-toastify";
@@ -37,6 +37,50 @@ function nuevaLinea() {
   };
 }
 
+// =========================
+//  Utilidades RUT
+// =========================
+
+// Recibe un string y devuelve solo dígitos del RUT (sin puntos, guión ni DV).
+// Si no hay dígitos, devuelve cadena vacía.
+function normalizeRutNumberOnly(value) {
+  if (!value) return "";
+  const digits = String(value).replace(/\D/g, "");
+  return digits.length ? digits : "";
+}
+
+// Recibe solo dígitos + K y devuelve xx.xxx.xxx-X
+function formatRutFromClean(clean) {
+  if (!clean) return "";
+  const up = clean.toUpperCase();
+  if (up.length <= 1) return up;
+
+  const cuerpo = up.slice(0, -1);
+  const dv = up.slice(-1);
+
+  const rev = cuerpo.split("").reverse();
+  let conPuntos = "";
+  for (let i = 0; i < rev.length; i++) {
+    if (i > 0 && i % 3 === 0) conPuntos = "." + conPuntos;
+    conPuntos = rev[i] + conPuntos;
+  }
+  return `${conPuntos}-${dv}`;
+}
+
+// Si el valor parece RUT (solo números + K), lo formatea; si no, lo devuelve igual.
+function formatRutOnType(value) {
+  const trimmed = value.replace(/\s+/g, "").toUpperCase();
+  // Quitamos números, puntos, guión y K -> si queda algo, es nombre
+  const letrasNoRut = trimmed.replace(/[0-9.\-K]/g, "");
+  if (letrasNoRut.length > 0) {
+    // Es nombre → no tocamos lo que está escribiendo
+    return value;
+  }
+  const clean = trimmed.replace(/[^0-9K]/g, "");
+  if (!clean) return "";
+  return formatRutFromClean(clean);
+}
+
 // Cálculo fechas incluyendo el día inicial
 function calcularHasta(desdeStr, unidad, cantidad) {
   if (!desdeStr || !cantidad || cantidad <= 0) return "";
@@ -70,6 +114,9 @@ export default function CrearOT() {
   const { auth, backendURL } = useAuth();
   const [saving, setSaving] = useState(false);
 
+  // N° de OT sugerido
+  const [otNumero, setOtNumero] = useState("");
+
   // Datos generales OT
   const [tipo, setTipo] = useState("ALTA");
   const [clienteTerm, setClienteTerm] = useState("");
@@ -77,6 +124,16 @@ export default function CrearOT() {
   const [direccion, setDireccion] = useState("");
   const [contactos, setContactos] = useState("");
   const [observaciones, setObservaciones] = useState("");
+
+  // Autocomplete cliente
+  const [clienteSugerencias, setClienteSugerencias] = useState([]);
+  const [clienteBuscando, setClienteBuscando] = useState(false);
+
+  // Modal de búsqueda de clientes
+  const [clienteModalOpen, setClienteModalOpen] = useState(false);
+  const [clienteModalTerm, setClienteModalTerm] = useState("");
+  const [clienteModalResultados, setClienteModalResultados] = useState([]);
+  const [clienteModalLoading, setClienteModalLoading] = useState(false);
 
   // Líneas de máquinas
   const [items, setItems] = useState([nuevaLinea()]);
@@ -196,7 +253,9 @@ export default function CrearOT() {
   };
 
   const removeLinea = (id) => {
-    setItems((prev) => (prev.length === 1 ? prev : prev.filter((it) => it.id !== id)));
+    setItems((prev) =>
+      prev.length === 1 ? prev : prev.filter((it) => it.id !== id)
+    );
   };
 
   // --------- BÚSQUEDA POR SERIE (validación manual) ---------
@@ -273,7 +332,177 @@ export default function CrearOT() {
     );
   }, [items]);
 
-  // --------- GUARDAR OT (placeholder backend) ---------
+  // --------- CORRELATIVO N° OT (solo UI) ---------
+  useEffect(() => {
+    const fetchNextNumero = async () => {
+      try {
+        const res = await authFetch(`${backendURL}/ordenes`, {
+          token: auth?.access,
+        });
+        if (!res.ok) throw new Error("Error al obtener correlativo OT");
+        const data = await res.json();
+
+        const arr = Array.isArray(data)
+          ? data
+          : Array.isArray(data.results)
+          ? data.results
+          : [];
+
+        if (!arr || arr.length === 0) {
+          setOtNumero("1");
+          return;
+        }
+
+        const first = arr[0]; // asumimos que viene la más reciente primero
+        const raw = first.numero ?? first.id;
+        const actual =
+          typeof raw === "number" ? raw : parseInt(String(raw), 10);
+        if (!isNaN(actual)) {
+          setOtNumero(String(actual + 1));
+        } else {
+          setOtNumero("");
+        }
+      } catch (e) {
+        console.error(e);
+        // si falla, dejamos el campo para edición manual
+        setOtNumero("");
+      }
+    };
+
+    fetchNextNumero();
+  }, [backendURL, auth?.access]);
+
+  // --------- AUTOCOMPLETE CLIENTE ---------
+
+  const buscarClientes = async (term) => {
+    if (!term) {
+      setClienteSugerencias([]);
+      return;
+    }
+    try {
+      setClienteBuscando(true);
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(term)}`;
+      const res = await authFetch(url, { token: auth?.access });
+      if (!res.ok) throw new Error("Error al buscar clientes");
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : [];
+      setClienteSugerencias(arr.slice(0, 10));
+    } catch (e) {
+      console.error(e);
+      setClienteSugerencias([]);
+    } finally {
+      setClienteBuscando(false);
+    }
+  };
+
+  // Efecto: cada vez que cambia clienteTerm, disparamos búsqueda con pequeño debounce
+  useEffect(() => {
+    const raw = (clienteTerm || "").trim();
+    if (!raw) {
+      setClienteSugerencias([]);
+      return;
+    }
+
+    // ¿Tiene letras de nombre (aparte de K)?
+    const letrasNombre = raw
+      .replace(/[0-9.\-\sKk]/g, "")
+      .match(/[A-Za-zÁÉÍÓÚáéíóúÑñ]/);
+
+    let searchTerm = "";
+
+    if (!letrasNombre) {
+      // Parece RUT → usamos solo dígitos como término para backend
+      const digits = raw.replace(/\D/g, "");
+      if (digits.length < 3) {
+        setClienteSugerencias([]);
+        return;
+      }
+      searchTerm = digits;
+    } else {
+      // Nombre
+      if (raw.length < 3) {
+        setClienteSugerencias([]);
+        return;
+      }
+      searchTerm = raw;
+    }
+
+    const handle = setTimeout(() => {
+      buscarClientes(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(handle);
+  }, [clienteTerm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleClienteInputChange = (e) => {
+    const value = e.target.value;
+    const formatted = formatRutOnType(value);
+    setClienteTerm(formatted);
+  };
+
+  const handleSelectClienteSugerido = (cli) => {
+    setClienteTerm(`${cli.rut} – ${cli.razon_social}`);
+    setClienteSugerencias([]);
+  };
+
+  // --------- MODAL CLIENTE ---------
+
+  const abrirModalCliente = () => {
+    setClienteModalOpen(true);
+    setClienteModalTerm("");
+    setClienteModalResultados([]);
+  };
+
+  const cerrarModalCliente = () => {
+    setClienteModalOpen(false);
+    setClienteModalTerm("");
+    setClienteModalResultados([]);
+  };
+
+  const buscarClienteEnModal = async () => {
+    const term = (clienteModalTerm || "").trim();
+    if (!term) {
+      setClienteModalResultados([]);
+      return;
+    }
+
+    setClienteModalLoading(true);
+    try {
+      // Si es un RUT numérico, lo normalizamos; si no, usamos el texto tal cual
+      const soloNums = normalizeRutNumberOnly(term);
+      const q = soloNums ? soloNums : term;
+
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(q)}`;
+      const res = await authFetch(url, { token: auth?.access });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        console.error("❌ Error backend buscar clientes:", res.status, txt);
+        toast.error("Error al buscar clientes");
+        setClienteModalResultados([]);
+        return;
+      }
+
+      let data = await res.json();
+      if (!Array.isArray(data)) data = [];
+      setClienteModalResultados(data);
+    } catch (e) {
+      console.error("❌ Error al buscar clientes (modal):", e);
+      toast.error("Error al buscar clientes");
+      setClienteModalResultados([]);
+    } finally {
+      setClienteModalLoading(false);
+    }
+  };
+
+  const seleccionarClienteDesdeModal = (cli) => {
+    setClienteTerm(`${cli.rut} – ${cli.razon_social}`);
+    setClienteModalOpen(false);
+    setClienteModalTerm("");
+    setClienteModalResultados([]);
+  };
+
+  // --------- GUARDAR OT ---------
 
   const handleGuardar = async () => {
     if (!clienteTerm.trim()) {
@@ -285,9 +514,13 @@ export default function CrearOT() {
       return;
     }
 
+    const numeroActual = otNumero; // para usar en el mensaje
+
     setSaving(true);
     try {
       const payload = {
+        // Por ahora el número de OT es solo de referencia en el frontend,
+        // NO se envía al backend para evitar errores de validación.
         tipo,
         observaciones,
         meta_cliente: clienteTerm,
@@ -318,9 +551,28 @@ export default function CrearOT() {
         throw new Error(txt || `Error ${res.status} al crear la OT`);
       }
 
-      toast.success("Orden de trabajo creada correctamente.");
-      setItems([nuevaLinea()]);
+      // Mensaje con número
+      if (numeroActual) {
+        toast.success(`Orden de trabajo N°${numeroActual} ha sido creada`);
+      } else {
+        toast.success("Orden de trabajo ha sido creada.");
+      }
+
+      // Limpiar formulario para nueva OT
+      setTipo("ALTA");
+      setClienteTerm("");
+      setObra("");
+      setDireccion("");
+      setContactos("");
       setObservaciones("");
+      setItems([nuevaLinea()]);
+      setClienteSugerencias([]);
+
+      // Avanzar correlativo localmente
+      if (numeroActual) {
+        const siguiente = (parseInt(numeroActual, 10) || 0) + 1;
+        setOtNumero(String(siguiente));
+      }
     } catch (e) {
       console.error(e);
       toast.error(e.message || "Error al crear la orden de trabajo");
@@ -333,6 +585,17 @@ export default function CrearOT() {
   // RENDER
   // ====================
 
+  const smallSuggestionStyle = {
+    width: "100%",
+    textAlign: "left",
+    padding: "6px 10px",
+    fontSize: "0.85rem",
+    border: "none",
+    background: "transparent",
+    color: "inherit",
+    cursor: "pointer",
+  };
+
   return (
     <>
       <div className="ot-layout">
@@ -342,6 +605,23 @@ export default function CrearOT() {
           <div className="admin-card">
             <div className="fieldset">
               <div className="legend">Crear orden de trabajo</div>
+
+              {/* N° OT (correlativo sugerido) */}
+              <div className="form-row">
+                <div className="label">N° OT</div>
+                <div className="control">
+                  <input
+                    className="input"
+                    value={otNumero}
+                    onChange={(e) => setOtNumero(e.target.value)}
+                    placeholder="Número sugerido de orden de trabajo"
+                  />
+                  <div className="help-text">
+                    Se asigna automáticamente un número correlativo, pero puedes
+                    ajustarlo manualmente si lo necesitas.
+                  </div>
+                </div>
+              </div>
 
               {/* Tipo OT */}
               <div className="form-row">
@@ -359,7 +639,8 @@ export default function CrearOT() {
                     ))}
                   </select>
                   <div className="help-text">
-                    Arriendo, Venta o Traslado (Axxxx / Vxxxx / Txxxx se define en backend).
+                    Arriendo, Venta o Traslado (Axxxx / Vxxxx / Txxxx se define
+                    en backend).
                   </div>
                 </div>
               </div>
@@ -367,15 +648,92 @@ export default function CrearOT() {
               {/* Cliente */}
               <div className="form-row">
                 <div className="label">Cliente</div>
-                <div className="control">
-                  <input
-                    className="input"
-                    placeholder="Razón social o RUT"
-                    value={clienteTerm}
-                    onChange={(e) => setClienteTerm(e.target.value)}
-                  />
-                  <div className="help-text">
-                    Si el cliente no existe, el sistema lo avisará al confirmar la OT.
+                <div className="control" style={{ width: "100%" }}>
+                  {/* fila: input + botón dentro del mismo ancho */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 8,
+                      width: "100%",
+                      maxWidth: "100%",
+                    }}
+                  >
+                    {/* contenedor del input + sugerencias */}
+                    <div
+                      style={{
+                        position: "relative",
+                        minWidth: 0,
+                      }}
+                    >
+                      <input
+                        className="input"
+                        style={{ width: "100%" }}
+                        placeholder="RUT (xx.xxx.xxx-x) o nombre"
+                        value={clienteTerm}
+                        onChange={handleClienteInputChange}
+                      />
+
+                      {/* Lista de sugerencias */}
+                      {clienteSugerencias.length > 0 && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            left: 0,
+                            right: 0,
+                            marginTop: 2,
+                            background:
+                              "var(--bg-elevated, rgba(15,23,42,0.98))",
+                            border:
+                              "1px solid var(--border-subtle, rgba(148,163,184,0.6))",
+                            borderRadius: 4,
+                            maxHeight: 220,
+                            overflowY: "auto",
+                            zIndex: 30,
+                          }}
+                        >
+                          {clienteSugerencias.map((cli) => (
+                            <button
+                              key={cli.id}
+                              type="button"
+                              style={smallSuggestionStyle}
+                              onClick={() =>
+                                handleSelectClienteSugerido(cli)
+                              }
+                            >
+                              <div>
+                                <strong>{cli.rut}</strong> – {cli.razon_social}
+                              </div>
+                            </button>
+                          ))}
+                          {clienteBuscando && (
+                            <div
+                              style={{
+                                padding: "4px 10px",
+                                fontSize: "0.8rem",
+                                color: "var(--muted)",
+                              }}
+                            >
+                              Buscando...
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botón Buscar */}
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={abrirModalCliente}
+                      style={{
+                        minWidth: "7rem",
+                        alignSelf: "stretch",
+                      }}
+                    >
+                      Buscar
+                    </button>
                   </div>
                 </div>
               </div>
@@ -473,7 +831,8 @@ export default function CrearOT() {
                       </div>
                     ) : (
                       <div className="help-text">
-                        Puedes ingresar la serie o usar el buscador para ver las máquinas disponibles.
+                        Puedes ingresar la serie o usar el buscador para ver las
+                        máquinas disponibles.
                       </div>
                     )}
                   </div>
@@ -515,8 +874,9 @@ export default function CrearOT() {
                       )}
                     </div>
                     <div className="help-text">
-                      Ej.: 6 días, 1 semana, 2 semanas, 1 mes (30 días corridos).
-                      En &quot;Arriendo especial&quot; ajustas las fechas manualmente.
+                      Ej.: 6 días, 1 semana, 2 semanas, 1 mes (30 días
+                      corridos). En &quot;Arriendo especial&quot; ajustas las
+                      fechas manualmente.
                     </div>
                   </div>
                 </div>
@@ -636,14 +996,17 @@ export default function CrearOT() {
 
           {/* Botonera principal */}
           <div className="admin-card">
-            <div className="actions-bar">
+            <div
+              className="actions-bar"
+              style={{ display: "flex", justifyContent: "center" }}
+            >
               <button
                 type="button"
                 className="btn btn-primary"
                 disabled={saving}
                 onClick={handleGuardar}
               >
-                GUARDAR OT
+                CREAR ORDEN DE TRABAJO
               </button>
             </div>
           </div>
@@ -712,7 +1075,9 @@ export default function CrearOT() {
         <div className="ot-modal-backdrop" onClick={cerrarModal}>
           <div className="ot-modal" onClick={(e) => e.stopPropagation()}>
             <div className="ot-modal-header">
-              <div className="ot-modal-title">Seleccionar máquina disponible</div>
+              <div className="ot-modal-title">
+                Seleccionar máquina disponible
+              </div>
             </div>
 
             <div className="ot-modal-columns">
@@ -740,9 +1105,7 @@ export default function CrearOT() {
                         </div>
                         <div className="ot-machine-meta">
                           Serie: {m.serie || "—"}
-                          {m.altura
-                            ? ` · Altura: ${m.altura} m`
-                            : ""}
+                          {m.altura ? ` · Altura: ${m.altura} m` : ""}
                         </div>
                       </button>
                     );
@@ -774,9 +1137,7 @@ export default function CrearOT() {
                         </div>
                         <div className="ot-machine-meta">
                           Serie: {m.serie || "—"}
-                          {m.tonelaje
-                            ? ` · Tonelaje: ${m.tonelaje} t`
-                            : ""}
+                          {m.tonelaje ? ` · Tonelaje: ${m.tonelaje} t` : ""}
                         </div>
                       </button>
                     );
@@ -835,9 +1196,115 @@ export default function CrearOT() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE BÚSQUEDA DE CLIENTES */}
+      {clienteModalOpen && (
+        <div className="ot-modal-backdrop" onClick={cerrarModalCliente}>
+          <div className="ot-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ot-modal-header">
+              <div className="ot-modal-title">Buscar cliente</div>
+            </div>
+            <div className="fieldset" style={{ marginTop: 8 }}>
+              <div className="form-row">
+                <div className="label">Término</div>
+                <div className="control" style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="input"
+                    placeholder="RUT (xx.xxx.xxx-x) o nombre"
+                    value={clienteModalTerm}
+                    onChange={(e) =>
+                      setClienteModalTerm(formatRutOnType(e.target.value))
+                    }
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && buscarClienteEnModal()
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={buscarClienteEnModal}
+                    disabled={clienteModalLoading}
+                  >
+                    {clienteModalLoading ? "Buscando..." : "Buscar"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="label">Resultados</div>
+                <div className="control">
+                  {clienteModalResultados.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "0.5rem 0",
+                        fontSize: "0.85rem",
+                        color: "var(--muted)",
+                      }}
+                    >
+                      Sin resultados todavía.
+                    </div>
+                  ) : (
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>RUT</th>
+                          <th>Razón Social</th>
+                          <th>Dirección</th>
+                          <th>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clienteModalResultados.map((cli) => (
+                          <tr key={cli.id}>
+                            <td>{cli.rut}</td>
+                            <td>{cli.razon_social}</td>
+                            <td>{cli.direccion || "—"}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() =>
+                                  seleccionarClienteDesdeModal(cli)
+                                }
+                              >
+                                Seleccionar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={cerrarModalCliente}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+
+
+
 
 
 

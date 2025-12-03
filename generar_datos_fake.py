@@ -1,283 +1,337 @@
-# generar_datos_fake.py
 """
-Generador de datos falsos para:
-- Usuarios (auth.User)
-- Clientes
-- Maquinaria elevadores (categoria='equipos_altura')
-- Maquinaria camiones (categoria='camiones')
+Script para poblar la base con datos falsos (usuarios, clientes, elevadores y camiones).
+
+Uso:
+
+    py generar_datos_fake.py
+
+Este script:
+- Detecta el entorno virtual (backend/.venv, .venv, etc.).
+- Si no se está ejecutando con ese python, lanza un subproceso con el python del venv.
 """
 
 import os
 import sys
 import random
-from decimal import Decimal
+import string
 from pathlib import Path
+import subprocess
 
-from faker import Faker
+# =========================
+#  Bootstrap: usar el .venv
+# =========================
 
-# ==========================================
-# 1) Inicializar Django usando la MISMA
-#    config que usa manage.py / start.py
-# ==========================================
 ROOT = Path(__file__).resolve().parent
-BACKEND = ROOT / "backend"
+BACKEND_DIR = ROOT / "backend"
 
-# Añadir carpeta backend al sys.path
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
+CANDIDATE_VENVS = [
+    BACKEND_DIR / ".venv",
+    ROOT / ".venv",
+    BACKEND_DIR / "venv",
+    ROOT / "venv",
+]
+
+
+def find_venv_python():
+    for v in CANDIDATE_VENVS:
+        py_win = v / "Scripts" / "python.exe"
+        py_unix = v / "bin" / "python"
+        if py_win.exists():
+            return py_win
+        if py_unix.exists():
+            return py_unix
+    return None
+
+
+# Solo hacemos el “salto” al venv una vez
+if os.environ.get("FAKE_DATA_VENV_READY") != "1":
+    venv_py = find_venv_python()
+    if venv_py is not None:
+        curr = Path(sys.executable).resolve()
+        if curr != venv_py.resolve():
+            # Lanzar subproceso con el Python del venv
+            os.environ["FAKE_DATA_VENV_READY"] = "1"
+            cmd = [str(venv_py), str(Path(__file__).resolve()), *sys.argv[1:]]
+            # IMPORTANTE: no usamos shell, así maneja bien espacios en la ruta
+            subprocess.run(cmd, check=False)
+            sys.exit(0)
+    # Si no encontramos venv, seguimos con el intérprete actual (asumiendo que tiene los paquetes)
+
+# =========================
+#  Configuración de Django
+# =========================
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.append(str(BACKEND_DIR))
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "estado_maquinas.settings")
 
-import django  # ahora sí
-django.setup()
+try:
+    import django
+    django.setup()
+except Exception as e:
+    print("❌ Error al configurar Django. Revisa DJANGO_SETTINGS_MODULE, el sys.path y el entorno virtual.")
+    print(e)
+    sys.exit(1)
 
-# 2) Importar modelos de Django
 from django.contrib.auth.models import User
-from api.models import Maquinaria, Cliente  # nota: api.models, no backend.api
-
-faker = Faker("es_CL")
-
-
+from django.db import IntegrityError
+from api.models import Cliente, Maquinaria
 
 # =========================
-# Utilidades
+#  Utilidades generales
 # =========================
-def input_entero(mensaje, minimo=0, por_defecto=0):
+
+def ask_int(prompt: str, default: int = 0) -> int:
     """
-    Pide un entero por consola.
-    Si el usuario deja vacío, usa el valor por_defecto.
+    Pide un entero por consola. Enter = default.
+    Si el valor es inválido, devuelve default.
     """
-    while True:
-        valor = input(f"{mensaje} (por defecto {por_defecto}): ").strip()
-        if not valor:
-            return por_defecto
-        try:
-            n = int(valor)
-            if n < minimo:
-                print(f"Debe ser un número >= {minimo}")
-                continue
-            return n
-        except ValueError:
-            print("Por favor, ingresa un número válido.")
+    txt = input(prompt).strip()
+    if not txt:
+        return default
+    try:
+        n = int(txt)
+        if n < 0:
+            return default
+        return n
+    except ValueError:
+        print("⚠ Valor inválido, se usará", default)
+        return default
+
+# =========================
+#  RUT chileno (módulo 11)
+# =========================
+
+def calcular_dv(rut_num: str) -> str:
+    """
+    Calcula el dígito verificador (DV) para un RUT chileno usando módulo 11.
+    rut_num: string solo con dígitos, SIN puntos ni DV.
+    """
+    rut_reverso = list(map(int, rut_num[::-1]))
+    factores = [2, 3, 4, 5, 6, 7]
+
+    acumulado = 0
+    for i, dig in enumerate(rut_reverso):
+        acumulado += dig * factores[i % len(factores)]
+
+    resto = acumulado % 11
+    dv_num = 11 - resto
+
+    if dv_num == 11:
+        return "0"
+    elif dv_num == 10:
+        return "K"
+    else:
+        return str(dv_num)
 
 
-def generar_serie(prefijo: str) -> str:
+def formatear_rut(rut_num: str, dv: str) -> str:
     """
-    Genera una serie única para Maquinaria, con el prefijo indicado.
+    Formatea un RUT tipo '27962409' + '2' → '27.962.409-2'.
+    Asume que rut_num tiene 8 dígitos (xx.xxx.xxx).
     """
-    while True:
-        numero = faker.random_number(digits=6, fix_len=True)
-        serie = f"{prefijo}-{numero}"
-        if not Maquinaria.objects.filter(serie=serie).exists():
-            return serie
+    cuerpo = rut_num
+    partes = []
+    while len(cuerpo) > 3:
+        partes.append(cuerpo[-3:])
+        cuerpo = cuerpo[:-3]
+    partes.append(cuerpo)
+    partes = partes[::-1]
+    return f"{'.'.join(partes)}-{dv}"
 
 
 def generar_rut_unico() -> str:
     """
-    Genera un RUT chileno simple y único para Cliente.
-    (No valida dígito verificador real, solo formato cuerpo-DV.)
+    Genera un RUT válido con formato xx.xxx.xxx-y que no exista aún en Cliente.rut.
     """
     while True:
-        cuerpo = faker.random_number(digits=8, fix_len=True)
-        dv = random.choice(list("0123456789K"))
-        rut = f"{cuerpo}-{dv}"
+        numero = random.randint(10_000_000, 99_999_999)
+        rut_num = f"{numero}"
+        dv = calcular_dv(rut_num)
+        rut = formatear_rut(rut_num, dv).upper()
         if not Cliente.objects.filter(rut=rut).exists():
             return rut
 
+# =========================
+#  Fakers simples
+# =========================
+
+NOMBRES = [
+    "Constructora", "Servicios", "Ingeniería", "Maestranza",
+    "Transportes", "Montajes", "Arriendos", "Soluciones"
+]
+APELLIDOS = [
+    "González", "Muñoz", "Rojas", "Díaz", "Pérez",
+    "Soto", "Contreras", "Silva", "Martínez", "López"
+]
+
+MARCAS_ELEVADOR = ["Genie", "JLG", "Haulotte", "Skyjack", "Hidroplat", "MEC"]
+MODELOS_ELEVADOR = ["GS-1930", "GS-2632", "3246ES", "450AJ", "STAR 10", "SJIII 3219"]
+
+MARCAS_CAMION = ["Mercedes-Benz", "Volvo", "Scania", "Iveco", "Hino", "Isuzu"]
+MODELOS_CAMION = ["Atego", "FH", "P310", "Eurocargo", "300", "Elf"]
+
+def fake_razon_social(idx: int) -> str:
+    return f"{random.choice(NOMBRES)} {random.choice(APELLIDOS)} #{idx}"
+
+def fake_telefono() -> str:
+    return "9" + "".join(random.choice(string.digits) for _ in range(8))
+
+def fake_email_from_username(username: str) -> str:
+    return f"{username}@test.local"
 
 # =========================
-# Creación de usuarios
+#  Creación de usuarios
 # =========================
+
 def crear_usuarios(cantidad: int):
     if cantidad <= 0:
-        print("No se crearán usuarios.")
-        return
-
-    print(f"\nCreando {cantidad} usuarios de prueba...")
-
-    for i in range(cantidad):
-        base_username = faker.user_name()
-        username = base_username
-
-        # Asegurar username único
-        while User.objects.filter(username=username).exists():
-            username = f"{base_username}{random.randint(100, 999)}"
-
-        email = faker.unique.email()
-        first_name = faker.first_name()
-        last_name = faker.last_name()
-
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            password="Test1234!"  # contraseña genérica de pruebas
-        )
-
-        print(f"  [{i+1}/{cantidad}] Usuario creado: {user.username} - {user.email}")
-
-    print("✅ Usuarios creados.\n")
-
+        return 0
+    creados = 0
+    for _ in range(cantidad):
+        for _attempt in range(20):
+            username = f"user{random.randint(1, 9999):04d}"
+            if User.objects.filter(username=username).exists():
+                continue
+            try:
+                user = User.objects.create_user(
+                    username=username,
+                    email=fake_email_from_username(username),
+                    password="demo1234",
+                    is_staff=False,
+                    is_superuser=False,
+                )
+                creados += 1
+                print(f"  ✔ Usuario creado: {user.username}")
+                break
+            except IntegrityError:
+                continue
+    return creados
 
 # =========================
-# Creación de clientes
+#  Creación de clientes
 # =========================
+
 def crear_clientes(cantidad: int):
     if cantidad <= 0:
-        print("No se crearán clientes.")
-        return
-
-    print(f"\nCreando {cantidad} clientes de prueba...")
-
-    formas_pago_posibles = [op[0] for op in Cliente.FORMA_PAGO_CHOICES]
-
-    for i in range(cantidad):
-        razon = faker.company()
+        return 0
+    formas_pago = [fp[0] for fp in Cliente.FORMA_PAGO_CHOICES]
+    creados = 0
+    for i in range(1, cantidad + 1):
         rut = generar_rut_unico()
-        direccion = faker.address().replace("\n", ", ")
-        telefono = faker.phone_number()
-        correo = faker.company_email()
-        forma_pago = random.choice(formas_pago_posibles)
-
-        cli = Cliente.objects.create(
+        razon = fake_razon_social(i)
+        cliente = Cliente.objects.create(
             razon_social=razon,
             rut=rut,
-            direccion=direccion,
-            telefono=telefono,
-            correo_electronico=correo,
-            forma_pago=forma_pago,
+            direccion=f"Calle Falsa {random.randint(1, 999)}, Santiago",
+            telefono=fake_telefono(),
+            correo_electronico=f"contacto{i}@cliente-falso.cl",
+            forma_pago=random.choice(formas_pago) if formas_pago else None,
         )
-
-        print(f"  [{i+1}/{cantidad}] Cliente: {cli.razon_social} - {cli.rut}")
-
-    print("✅ Clientes creados.\n")
-
+        creados += 1
+        print(f"  ✔ Cliente creado: {cliente.razon_social} – {cliente.rut}")
+    return creados
 
 # =========================
-# Creación de elevadores
+#  Creación de maquinarias
 # =========================
+
+def generar_serie_unica(prefijo: str) -> str:
+    while True:
+        numeros = "".join(random.choice(string.digits) for _ in range(6))
+        serie = f"{prefijo}{numeros}"
+        if not Maquinaria.objects.filter(serie=serie).exists():
+            return serie
+
 def crear_elevadores(cantidad: int):
     if cantidad <= 0:
-        print("No se crearán elevadores.")
-        return
-
-    print(f"\nCreando {cantidad} elevadores (categoria='equipos_altura')...")
-
-    marcas_elevadores = ["JLG", "Genie", "Haulotte", "XCMG", "MPG", "Skyjack"]
-    alturas_posibles = [8, 10, 12, 14, 16, 18, 20]  # metros
-    cargas_posibles = [230, 300, 450, 500]          # kg
-
+        return 0
+    creados = 0
     for i in range(cantidad):
-        marca = random.choice(marcas_elevadores)
-        modelo = f"ELV-{faker.random_number(digits=3, fix_len=True)}"
-        serie = generar_serie("ELV")
-
-        altura = Decimal(str(random.choice(alturas_posibles)))
-        carga = Decimal(str(random.choice(cargas_posibles)))
-        anio = random.randint(2008, 2024)
-
-        tipo_altura = random.choice(["tijera", "brazo"])
-        combustible = random.choice(["electrico", "diesel"])
-
+        es_tijera = (i % 2 == 0)
+        tipo_altura = "tijera" if es_tijera else "brazo"
+        prefijo = "TIJ" if es_tijera else "ART"
+        serie = generar_serie_unica(prefijo)
+        marca = random.choice(MARCAS_ELEVADOR)
+        modelo = random.choice(MODELOS_ELEVADOR)
+        altura = random.randint(6, 32)
+        if es_tijera:
+            combustible = random.choice(["electrico", "electrico", "diesel"])
+        else:
+            combustible = random.choice(["diesel", "diesel", "electrico"])
         maq = Maquinaria.objects.create(
             marca=marca,
             modelo=modelo,
             serie=serie,
             categoria="equipos_altura",
-            descripcion=f"Elevador {tipo_altura} {marca} {modelo}, {altura} m, {combustible}.",
+            descripcion=f"Elevador {tipo_altura} {marca} {modelo}",
             altura=altura,
-            anio=anio,
+            anio=random.randint(2010, 2025),
             tonelaje=None,
-            carga=carga,
+            carga=None,
             tipo_altura=tipo_altura,
             combustible=combustible,
-            estado="Disponible",
+            estado=random.choice(["Disponible", "Para venta"]),
         )
+        creados += 1
+        print(f"  ✔ Elevador creado: {maq.serie} – {maq.descripcion}")
+    return creados
 
-        print(
-            f"  [{i+1}/{cantidad}] Elevador: {maq.marca} {maq.modelo} "
-            f"({maq.serie}) {maq.altura}m {maq.combustible}"
-        )
-
-    print("✅ Elevadores creados.\n")
-
-
-# =========================
-# Creación de camiones
-# =========================
 def crear_camiones(cantidad: int):
     if cantidad <= 0:
-        print("No se crearán camiones.")
-        return
-
-    print(f"\nCreando {cantidad} camiones (categoria='camiones')...")
-
-    marcas_camiones = ["Iveco", "Mercedes-Benz", "Scania", "Volvo", "Hino", "Fuso", "MPG"]
-    tonelajes_posibles = [3.5, 5, 7.5, 10, 12, 15]  # toneladas
-    cargas_posibles = [2000, 4000, 6000, 8000, 10000]  # kg
-
-    for i in range(cantidad):
-        marca = random.choice(marcas_camiones)
-        modelo = f"TRK-{faker.random_number(digits=3, fix_len=True)}"
-        serie = generar_serie("TRK")
-
-        tonelaje = Decimal(str(random.choice(tonelajes_posibles)))
-        carga = Decimal(str(random.choice(cargas_posibles)))
-        anio = random.randint(2008, 2024)
-
+        return 0
+    creados = 0
+    for _ in range(cantidad):
+        serie = generar_serie_unica("CAM")
+        marca = random.choice(MARCAS_CAMION)
+        modelo = random.choice(MODELOS_CAMION)
+        tonelaje = random.choice([5, 8, 10, 12, 15, 18, 20, 25])
         maq = Maquinaria.objects.create(
             marca=marca,
             modelo=modelo,
             serie=serie,
             categoria="camiones",
-            descripcion=f"Camión {marca} {modelo}, {tonelaje} ton, carga útil {carga} kg.",
+            descripcion=f"Camión {marca} {modelo} {tonelaje}t",
             altura=None,
-            anio=anio,
+            anio=random.randint(2005, 2025),
             tonelaje=tonelaje,
-            carga=carga,
+            carga=tonelaje,
             tipo_altura=None,
             combustible="diesel",
-            estado="Disponible",
+            estado=random.choice(["Disponible", "Para venta"]),
         )
-
-        print(
-            f"  [{i+1}/{cantidad}] Camión: {maq.marca} {maq.modelo} "
-            f"({maq.serie}) {maq.tonelaje} ton"
-        )
-
-    print("✅ Camiones creados.\n")
-
+        creados += 1
+        print(f"  ✔ Camión creado: {maq.serie} – {maq.descripcion}")
+    return creados
 
 # =========================
-# main
+#  MAIN
 # =========================
+
 def main():
-    print("=== Generador de datos falsos (Usuarios, Clientes, Elevadores, Camiones) ===\n")
+    print("=== Generador de datos falsos (App web máquinas) ===\n")
+    n_users      = ask_int("¿Cuántos usuarios básicos (no admin) deseas crear? [0]: ", 0)
+    n_clientes   = ask_int("¿Cuántos clientes deseas crear? [0]: ", 0)
+    n_elevadores = ask_int("¿Cuántos elevadores deseas crear? [0]: ", 0)
+    n_camiones   = ask_int("¿Cuántos camiones deseas crear? [0]: ", 0)
 
-    n_usuarios = input_entero("¿Cuántos usuarios quieres crear?", minimo=0, por_defecto=0)
-    n_clientes = input_entero("¿Cuántos clientes quieres crear?", minimo=0, por_defecto=0)
-    n_elevadores = input_entero("¿Cuántas máquinas elevadoras quieres crear?", minimo=0, por_defecto=0)
-    n_camiones = input_entero("¿Cuántos camiones quieres crear?", minimo=0, por_defecto=0)
+    print("\nCreando datos...\n")
+    total_users    = crear_usuarios(n_users)
+    total_clientes = crear_clientes(n_clientes)
+    total_elev     = crear_elevadores(n_elevadores)
+    total_cam      = crear_camiones(n_camiones)
 
-    print("\nResumen de lo solicitado:")
-    print(f"  Usuarios:   {n_usuarios}")
-    print(f"  Clientes:   {n_clientes}")
-    print(f"  Elevadores: {n_elevadores}")
-    print(f"  Camiones:   {n_camiones}")
-    confirmar = input("\n¿Confirmas la creación? (s/N): ").strip().lower()
-
-    if confirmar != "s":
-        print("Operación cancelada.")
-        return
-
-    crear_usuarios(n_usuarios)
-    crear_clientes(n_clientes)
-    crear_elevadores(n_elevadores)
-    crear_camiones(n_camiones)
-
-    print("🎉 Listo. Datos de prueba generados.")
-
+    print("\n=== Resumen ===")
+    print(f"  Usuarios creados:   {total_users}")
+    print(f"  Clientes creados:   {total_clientes}")
+    print(f"  Elevadores creados: {total_elev}")
+    print(f"  Camiones creados:   {total_cam}")
+    print("\nListo ✅")
 
 if __name__ == "__main__":
     main()
+
+
+
+
