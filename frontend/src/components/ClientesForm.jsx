@@ -6,11 +6,72 @@ import { authFetch } from "../lib/api";
 import { toast } from "react-toastify";
 
 const FORMA_PAGO_OPCIONES = [
-  { value: "", label: "---------", },
+  { value: "", label: "---------" },
   { value: "Pago contado", label: "Pago contado" },
   { value: "Pago a 15 días", label: "Pago a 15 días" },
   { value: "Pago a 30 días", label: "Pago a 30 días" },
 ];
+
+/* =========================
+   Helpers RUT (Chile)
+   ========================= */
+
+// deja solo dígitos y K/k
+function rutClean(value) {
+  return (value || "").replace(/[^0-9kK]/g, "").toUpperCase();
+}
+
+// formatea a xx.xxx.xxx-x
+function rutFormat(value) {
+  const clean = rutClean(value);
+  if (!clean) return "";
+
+  if (clean.length <= 1) return clean;
+
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+
+  const rev = cuerpo.split("").reverse();
+  let conPuntos = "";
+  for (let i = 0; i < rev.length; i++) {
+    if (i > 0 && i % 3 === 0) conPuntos = "." + conPuntos;
+    conPuntos = rev[i] + conPuntos;
+  }
+
+  return `${conPuntos}-${dv}`;
+}
+
+// calcula dígito verificador y compara
+function rutIsValid(value) {
+  const clean = rutClean(value);
+  if (clean.length < 2) return false;
+
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+
+  let suma = 0;
+  let multiplicador = 2;
+
+  for (let i = cuerpo.length - 1; i >= 0; i--) {
+    suma += parseInt(cuerpo[i], 10) * multiplicador;
+    multiplicador = multiplicador === 7 ? 2 : multiplicador + 1;
+  }
+
+  const resto = 11 - (suma % 11);
+  const dvEsperado =
+    resto === 11 ? "0" : resto === 10 ? "K" : String(resto);
+
+  return dv === dvEsperado;
+}
+
+// para mandar al backend: xxxxxxxx-x (sin puntos)
+function rutNormalizeBackend(value) {
+  const clean = rutClean(value);
+  if (clean.length < 2) return clean;
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+  return `${cuerpo}-${dv}`;
+}
 
 export default function ClientesForm({ setView, setSelectedCliente }) {
   const { auth, backendURL } = useAuth();
@@ -35,7 +96,7 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
 
   const buildPayload = () => ({
     razon_social: (razonSocial || "").trim(),
-    rut: (rut || "").trim(),
+    rut: rutNormalizeBackend(rut),
     direccion: (direccion || "").trim() || null,
     telefono: (telefono || "").trim() || null,
     correo_electronico: (correo || "").trim() || null,
@@ -43,7 +104,10 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
   });
 
   const crearCliente = async () => {
-    const body = JSON.stringify(buildPayload());
+    const payload = buildPayload();
+    const body = JSON.stringify(payload);
+    console.log("payload cliente:", payload); // para depurar
+
     const res = await authFetch(`${backendURL}/clientes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -55,6 +119,7 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
       let msg = `Error ${res.status} al crear cliente`;
       try {
         const data = await res.json();
+        console.log("error backend crear cliente:", data);
         // aplanado simple de mensajes del serializer
         if (typeof data === "object" && data !== null) {
           const parts = [];
@@ -80,6 +145,10 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
     }
     if (!rut.trim()) {
       toast.warn("El RUT es obligatorio");
+      return;
+    }
+    if (!rutIsValid(rut)) {
+      toast.error("El RUT no es válido. Revisa el dígito verificador.");
       return;
     }
 
@@ -140,6 +209,12 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
     </div>
   );
 
+  const handleRutChange = (e) => {
+    const raw = e.target.value;
+    const formatted = rutFormat(raw);
+    setRut(formatted);
+  };
+
   return (
     <AdminLayout
       title="Añadir cliente"
@@ -167,9 +242,12 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
               <input
                 className="input"
                 value={rut}
-                onChange={(e) => setRut(e.target.value)}
+                onChange={handleRutChange}
+                placeholder="xx.xxx.xxx-x"
               />
-              <div className="help-text">Ingresa el RUT sin puntos, con guión.</div>
+              <div className="help-text">
+                Escribe el RUT y se ajustará al formato xx.xxx.xxx-x automáticamente.
+              </div>
             </div>
           </div>
 
@@ -233,6 +311,8 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
     </AdminLayout>
   );
 }
+
+
 
 
 

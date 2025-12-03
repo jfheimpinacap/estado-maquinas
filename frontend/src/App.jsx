@@ -122,7 +122,6 @@ function AdminShell({
           {view === "consulta-documentos" && <ConsultaDocumentos />} 
           {view === "informes-documentos" && <InformesDocumentos />}
           {view === "crear-ot" && <CrearOT setView={setView} />}
-          {view === "estado-ordenes" && <EstadoOrdenes setView={setView} />}
           {view === "estado-arriendo-maquinas" && <EstadoArriendoMaquinas />}
         </main>
       </div>
