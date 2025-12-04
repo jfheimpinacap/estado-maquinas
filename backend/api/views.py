@@ -98,10 +98,31 @@ class ClienteViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
+        """
+        Crear cliente desde JSON.
+        Logueamos request.data y errores para ver exactamente qué llega
+        y usamos el serializer explícitamente.
+        """
+        # DEBUG: ver qué llega realmente
+        print(">>> [Clientes] request.data:", request.data)
+
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            # DEBUG: mostrar errores del serializer en consola
+            print(">>> [Clientes] serializer.errors:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            return super().create(request, *args, **kwargs)
+            self.perform_create(serializer)
         except IntegrityError:
-            return Response({"detail": "El RUT ya existe."}, status=status.HTTP_400_BAD_REQUEST)
+            # RUT duplicado (unique=True)
+            return Response(
+                {"rut": ["El RUT ya existe."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def list(self, request, *args, **kwargs):
         q = (request.GET.get("query") or "").strip()

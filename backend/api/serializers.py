@@ -1,7 +1,45 @@
+import re
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from .models import Cliente, Maquinaria, Obra, Arriendo, Documento, OrdenTrabajo, DOC_TIPO
 from django.contrib.auth.models import User
+
+def rut_clean(value: str | None) -> str:
+    """Deja solo dígitos y K/k."""
+    return re.sub(r"[^0-9Kk]", "", (value or "")).upper()
+
+
+def rut_is_valid(value: str | None) -> bool:
+    """Valida RUT chileno (incluye dígito verificador)."""
+    clean = rut_clean(value)
+    if len(clean) < 2:
+        return False
+
+    cuerpo = clean[:-1]
+    dv = clean[-1]
+
+    suma = 0
+    multiplicador = 2
+    for c in reversed(cuerpo):
+        suma += int(c) * multiplicador
+        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
+
+    resto = 11 - (suma % 11)
+    dv_esperado = "0" if resto == 11 else "K" if resto == 10 else str(resto)
+    return dv == dv_esperado
+
+
+def rut_normalize_backend(value: str | None) -> str:
+    """
+    Normaliza a formato backend: xxxxxxxx-X (sin puntos, con guión).
+    """
+    clean = rut_clean(value)
+    if len(clean) < 2:
+        return clean
+    cuerpo = clean[:-1]
+    dv = clean[-1]
+    return f"{cuerpo}-{dv}"
+
 
 class ClienteSerializer(serializers.ModelSerializer):
     telefono = serializers.CharField(allow_blank=True, allow_null=True, required=False)
@@ -12,30 +50,41 @@ class ClienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cliente
         fields = [
-            'id','razon_social','rut','direccion','telefono',
-            'correo_electronico','forma_pago'
+            "id",
+            "razon_social",
+            "rut",
+            "direccion",
+            "telefono",
+            "correo_electronico",
+            "forma_pago",
         ]
 
+    # Razón social obligatoria
+    def validate_razon_social(self, value: str) -> str:
+        v = (value or "").strip()
+        if not v:
+            raise serializers.ValidationError("La razón social es obligatoria.")
+        return v
+
+    # RUT obligatorio + dígito verificador + normalización
+    def validate_rut(self, value: str) -> str:
+        raw = (value or "").strip()
+        if not raw:
+            raise serializers.ValidationError("El RUT es obligatorio.")
+
+        if not rut_is_valid(raw):
+            raise serializers.ValidationError("El RUT no es válido.")
+
+        # Guardamos normalizado en BD (sin puntos, con guión)
+        return rut_normalize_backend(raw)
+
+    # Limpieza suave de campos opcionales
     def validate(self, attrs):
-        for k in ['direccion','telefono','forma_pago','correo_electronico']:
-            if attrs.get(k, None) == '':
+        for k in ["direccion", "telefono", "forma_pago", "correo_electronico"]:
+            if attrs.get(k, "") == "":
                 attrs[k] = None
-
-        is_partial = getattr(self, 'partial', False)
-
-        if (not is_partial) or ('rut' in attrs):
-            rut = (attrs.get('rut') or '').strip()
-            if not rut:
-                raise serializers.ValidationError({'rut': 'El RUT es obligatorio.'})
-            attrs['rut'] = rut.upper()
-
-        if (not is_partial) or ('razon_social' in attrs):
-            rs = (attrs.get('razon_social') or '').strip()
-            if not rs:
-                raise serializers.ValidationError({'razon_social': 'La razón social es obligatoria.'})
-            attrs['razon_social'] = rs
-
         return attrs
+
 
 class MaquinariaSerializer(serializers.ModelSerializer):
     """

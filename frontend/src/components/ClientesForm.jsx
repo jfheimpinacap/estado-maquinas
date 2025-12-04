@@ -96,49 +96,48 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
 
   const buildPayload = () => ({
     razon_social: (razonSocial || "").trim(),
-    rut: rutNormalizeBackend(rut),
-    direccion: (direccion || "").trim() || null,
-    telefono: (telefono || "").trim() || null,
-    correo_electronico: (correo || "").trim() || null,
-    forma_pago: (formaPago || "").trim() || null,
+    rut,
+    direccion: (direccion || "").trim(),
+    telefono: (telefono || "").trim(),
+    correo_electronico: (correo || "").trim(),
+    forma_pago: (formaPago || "").trim(),
   });
 
-  const crearCliente = async () => {
-    const payload = buildPayload();
-    const body = JSON.stringify(payload);
-    console.log("payload cliente:", payload); // para depurar
+const crearCliente = async () => {
+  const payload = buildPayload();
+  console.log("payload cliente:", payload); // para depurar
 
-    const res = await authFetch(`${backendURL}/clientes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      token: auth?.access,
-      body,
-    });
+  const res = await authFetch(`${backendURL}/clientes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    token: auth?.access,
+    body: JSON.stringify(payload),
+  });
 
-    if (!res.ok) {
-      let msg = `Error ${res.status} al crear cliente`;
-      try {
-        const data = await res.json();
-        console.log("error backend crear cliente:", data);
-        // aplanado simple de mensajes del serializer
-        if (typeof data === "object" && data !== null) {
-          const parts = [];
-          for (const [k, v] of Object.entries(data)) {
-            parts.push(`${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
-          }
-          if (parts.length) msg = parts.join(" | ");
+  if (!res.ok) {
+    let msg = `Error ${res.status} al crear cliente`;
+    try {
+      const data = await res.json();
+      console.log("error backend crear cliente:", data);
+      if (typeof data === "object" && data !== null) {
+        const parts = [];
+        for (const [k, v] of Object.entries(data)) {
+          parts.push(`${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
         }
-      } catch {
-        // ignorar parse error
+        if (parts.length) msg = parts.join(" | ");
       }
-      throw new Error(msg);
+    } catch {
+      // ignorar parse error
     }
+    throw new Error(msg);
+  }
 
-    return res.json();
-  };
+  return res.json();
+};
 
   const onGuardar = async (modo = "guardar") => {
-    // validaciones mínimas
     if (!razonSocial.trim()) {
       toast.warn("La razón social es obligatoria");
       return;
@@ -158,19 +157,16 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
       toast.success("Cliente creado correctamente");
 
       if (modo === "nuevo") {
-        // Guardar y añadir otro
         resetForm();
         return;
       }
 
       if (modo === "continuar" && setView && setSelectedCliente) {
-        // Guardar y continuar editando
         setSelectedCliente(clienteCreado);
         setView("editar-cliente");
         return;
       }
 
-      // Modo básico: solo guardar y volver a la lista/búsqueda
       if (setView) {
         setView("buscar-cliente");
       }
@@ -182,7 +178,6 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
     }
   };
 
-  // Botones inferiores (como Django admin)
   const accionesInferiores = (
     <div className="actions-bar">
       <button
@@ -246,7 +241,8 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
                 placeholder="xx.xxx.xxx-x"
               />
               <div className="help-text">
-                Escribe el RUT y se ajustará al formato xx.xxx.xxx-x automáticamente.
+                Escribe el RUT y se ajustará al formato xx.xxx.xxx-x
+                automáticamente.
               </div>
             </div>
           </div>
@@ -300,7 +296,8 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
                 ))}
               </select>
               <div className="help-text">
-                El cambio de forma de pago más adelante requerirá permiso especial.
+                El cambio de forma de pago más adelante requerirá permiso
+                especial.
               </div>
             </div>
           </div>
@@ -311,6 +308,7 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
     </AdminLayout>
   );
 }
+
 
 
 
