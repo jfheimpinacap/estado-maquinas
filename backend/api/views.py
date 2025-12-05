@@ -4,6 +4,7 @@ from django.db.models.functions import Replace
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.utils import timezone
+import json
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, action
@@ -99,40 +100,69 @@ class ClienteViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """
-        Crear cliente desde JSON.
-        Logueamos request.data y errores para ver exactamente qué llega
-        y usamos el serializer explícitamente.
+        Crear cliente leyendo el JSON crudo del body.
+        Sin validaciones manuales de campos obligatorios
+        (ya las haces en el frontend).
         """
-        # DEBUG: ver qué llega realmente
+        # DEBUG: ver qué llega realmente (si quieres mirar la consola del servidor)
+        print(">>> [Clientes] request.body:", request.body)
         print(">>> [Clientes] request.data:", request.data)
 
-        serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            # DEBUG: mostrar errores del serializer en consola
-            print(">>> [Clientes] serializer.errors:", serializer.errors)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Intentamos parsear JSON crudo
+        try:
+            raw_body = request.body.decode("utf-8")
+            data = json.loads(raw_body or "{}")
+        except Exception:
+            # fallback: lo que DRF haya parseado
+            data = request.data
+
+        # Extraemos campos; si no vienen, quedan como string vacío o None
+        razon_social = (data.get("razon_social") or "").strip()
+        rut = (data.get("rut") or "").strip()
+        direccion = (data.get("direccion") or "").strip() or None
+        telefono = (data.get("telefono") or "").strip() or None
+        correo = (data.get("correo_electronico") or "").strip() or None
+        forma_pago = (data.get("forma_pago") or "").strip() or None
 
         try:
-            self.perform_create(serializer)
+            cliente = Cliente.objects.create(
+                razon_social=razon_social,
+                rut=rut,
+                direccion=direccion,
+                telefono=telefono,
+                correo_electronico=correo,
+                forma_pago=forma_pago,
+            )
         except IntegrityError:
-            # RUT duplicado (unique=True)
+            # RUT duplicado
             return Response(
                 {"rut": ["El RUT ya existe."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        serializer = self.get_serializer(cliente)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def list(self, request, *args, **kwargs):
         q = (request.GET.get("query") or "").strip()
         qs = self.get_queryset()
         if q:
             if q.isdigit():
-                normalized = Replace(Replace(F('rut'), Value('.'), Value('')), Value('-'), Value(''))
+                from django.db.models import F, Value
+                from django.db.models.functions import Replace
+                from django.db.models import Q
+
+                normalized = Replace(
+                    Replace(F("rut"), Value("."), Value("")),
+                    Value("-"), Value("")
+                )
                 qs = qs.annotate(rut_norm=normalized).filter(rut_norm__startswith=q)
             else:
-                qs = qs.filter(Q(razon_social__icontains=q) | Q(rut__icontains=q))
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(razon_social__icontains=q) |
+                    Q(rut__icontains=q)
+                )
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
