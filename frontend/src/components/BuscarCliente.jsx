@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
+import { rutFormat, isRutLike } from "../lib/rut";
 
 export default function BuscarCliente({ setView, setSelectedCliente }) {
   const [query, setQuery] = useState("");
@@ -18,7 +19,9 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
     const q = localStorage.getItem("buscar:lastQuery") || "";
     const raw = localStorage.getItem("buscar:lastResults");
     if (raw) {
-      setQuery(q);
+      // si parece RUT, lo mostramos formateado
+      const display = isRutLike(q) ? rutFormat(q) : q;
+      setQuery(display);
       try {
         const parsed = JSON.parse(raw);
         setResultados(Array.isArray(parsed) ? parsed : []);
@@ -32,7 +35,6 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
   const totalRegistros = resultados.length;
   const totalPages = Math.max(1, Math.ceil(totalRegistros / pageSize));
 
-  // asegurar que la página no se vaya fuera de rango cuando cambian datos/tamaño
   useEffect(() => {
     setPage(1);
   }, [pageSize, totalRegistros]);
@@ -52,12 +54,13 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
 
   const handleBuscar = async () => {
     try {
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(query)}`;
+      const term = query.trim();
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(term)}`;
       const res = await authFetch(url, { token: auth.access });
       if (!res.ok) throw new Error("Error al buscar clientes");
       const data = await res.json();
       setResultados(Array.isArray(data) ? data : []);
-      localStorage.setItem("buscar:lastQuery", query);
+      localStorage.setItem("buscar:lastQuery", term);
       localStorage.setItem("buscar:lastResults", JSON.stringify(data));
       setPage(1);
     } catch (error) {
@@ -81,7 +84,6 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
       if (!res.ok) throw new Error("Error al listar todos los clientes");
       const data = await res.json();
       setResultados(Array.isArray(data) ? data : []);
-      // no guardamos query (es "listar todo")
       localStorage.setItem("buscar:lastQuery", "");
       localStorage.setItem("buscar:lastResults", JSON.stringify(data));
       setQuery("");
@@ -99,12 +101,10 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
 
   return (
     <>
-      {/* Título unificado, sin breadcrumbs */}
       <header className="page-header">
         <h1 className="page-title">Buscar cliente</h1>
       </header>
 
-      {/* Grid: izquierda (Parámetros + Resultados) / derecha (Filtro) */}
       <div className="main-grid">
         {/* Columna izquierda */}
         <div>
@@ -120,11 +120,20 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                     className="input"
                     placeholder="Razón social o RUT"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (isRutLike(raw)) {
+                        setQuery(rutFormat(raw));
+                      } else {
+                        setQuery(raw);
+                      }
+                    }}
                     onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
                   />
                   <small className="help-text">
-                    Presiona Enter para buscar rápidamente.
+                    Escribe un nombre o un RUT. Si escribes un RUT, se
+                    formateará como xx.xxx.xxx-x y la búsqueda lo entenderá
+                    igual.
                   </small>
                 </div>
               </div>
@@ -156,7 +165,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
             </div>
           </div>
 
-          {/* Resultados (mismo ancho que Parámetros) */}
+          {/* Resultados */}
           <div className="admin-card">
             <div className="fieldset">
               <div className="legend">Resultados</div>
@@ -191,7 +200,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                     paginaResultados.map((c) => (
                       <tr key={c.id}>
                         <td>{c.razon_social}</td>
-                        <td>{c.rut}</td>
+                        <td>{c.rut ? rutFormat(c.rut) : "—"}</td>
                         <td>{c.direccion || "—"}</td>
                         <td>{c.correo_electronico || "—"}</td>
                         <td>{c.telefono || "—"}</td>
@@ -213,7 +222,6 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                 </tbody>
               </table>
 
-              {/* Barra de paginación */}
               {totalRegistros > 0 && (
                 <div
                   style={{
@@ -321,6 +329,8 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
     </>
   );
 }
+
+
 
 
 

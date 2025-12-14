@@ -1,14 +1,12 @@
+# backend/api/serializers.py
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
+from django.db import IntegrityError
 from .models import Cliente, Maquinaria, Obra, Arriendo, Documento, OrdenTrabajo, DOC_TIPO
 from django.contrib.auth.models import User
 
-class ClienteSerializer(serializers.ModelSerializer):
-    telefono = serializers.CharField(allow_blank=True, required=False)
-    direccion = serializers.CharField(allow_blank=True, required=False)
-    forma_pago = serializers.CharField(allow_blank=True, required=False)
-    correo_electronico = serializers.EmailField(allow_blank=True, required=False)
 
+class ClienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cliente
         fields = [
@@ -20,13 +18,36 @@ class ClienteSerializer(serializers.ModelSerializer):
             "correo_electronico",
             "forma_pago",
         ]
-        # Deja que el modelo/DRF maneje la obligatoriedad básica
+        # 🔴 Nada es estrictamente requerido a nivel de API
         extra_kwargs = {
-            "razon_social": {"required": True},
-            "rut": {"required": True},
+            "razon_social": {"required": False, "allow_blank": True},
+            "rut": {"required": False, "allow_blank": True},
+            "direccion": {"required": False, "allow_blank": True, "allow_null": True},
+            "telefono": {"required": False, "allow_blank": True, "allow_null": True},
+            "correo_electronico": {
+                "required": False,
+                "allow_blank": True,
+                "allow_null": True,
+            },
+            "forma_pago": {"required": False, "allow_blank": True, "allow_null": True},
         }
 
-
+    def validate(self, attrs):
+        """
+        Limpieza suave: cadenas vacías -> None en campos opcionales.
+        (No hacemos validación de RUT ni razón social aquí; eso lo controla el front.)
+        """
+        for k in ["direccion", "telefono", "correo_electronico", "forma_pago"]:
+            if attrs.get(k, "") == "":
+                attrs[k] = None
+        return attrs
+    
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except IntegrityError:
+            raise serializers.ValidationError({"rut": ["El RUT ya existe."]})
+    
 
 class MaquinariaSerializer(serializers.ModelSerializer):
     """

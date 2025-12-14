@@ -98,50 +98,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
     serializer_class = ClienteSerializer
     permission_classes = [IsAuthenticated]
 
-    def create(self, request, *args, **kwargs):
-        """
-        Crear cliente leyendo el JSON crudo del body.
-        Sin validaciones manuales de campos obligatorios
-        (ya las haces en el frontend).
-        """
-        # DEBUG: ver qué llega realmente (si quieres mirar la consola del servidor)
-        print(">>> [Clientes] request.body:", request.body)
-        print(">>> [Clientes] request.data:", request.data)
-
-        # Intentamos parsear JSON crudo
-        try:
-            raw_body = request.body.decode("utf-8")
-            data = json.loads(raw_body or "{}")
-        except Exception:
-            # fallback: lo que DRF haya parseado
-            data = request.data
-
-        # Extraemos campos; si no vienen, quedan como string vacío o None
-        razon_social = (data.get("razon_social") or "").strip()
-        rut = (data.get("rut") or "").strip()
-        direccion = (data.get("direccion") or "").strip() or None
-        telefono = (data.get("telefono") or "").strip() or None
-        correo = (data.get("correo_electronico") or "").strip() or None
-        forma_pago = (data.get("forma_pago") or "").strip() or None
-
-        try:
-            cliente = Cliente.objects.create(
-                razon_social=razon_social,
-                rut=rut,
-                direccion=direccion,
-                telefono=telefono,
-                correo_electronico=correo,
-                forma_pago=forma_pago,
-            )
-        except IntegrityError:
-            # RUT duplicado
-            return Response(
-                {"rut": ["El RUT ya existe."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        serializer = self.get_serializer(cliente)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    # NO sobreescribimos create; usamos el comportamiento por defecto de DRF.
 
     def list(self, request, *args, **kwargs):
         q = (request.GET.get("query") or "").strip()

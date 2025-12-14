@@ -4,6 +4,11 @@ import AdminLayout from "./layout/AdminLayout";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
 import { toast } from "react-toastify";
+import {
+  rutFormat,
+  rutIsValid,
+  rutNormalizeBackend,
+} from "../lib/rut";
 
 const FORMA_PAGO_OPCIONES = [
   { value: "", label: "---------" },
@@ -11,67 +16,6 @@ const FORMA_PAGO_OPCIONES = [
   { value: "Pago a 15 días", label: "Pago a 15 días" },
   { value: "Pago a 30 días", label: "Pago a 30 días" },
 ];
-
-/* =========================
-   Helpers RUT (Chile)
-   ========================= */
-
-// deja solo dígitos y K/k
-function rutClean(value) {
-  return (value || "").replace(/[^0-9kK]/g, "").toUpperCase();
-}
-
-// formatea a xx.xxx.xxx-x
-function rutFormat(value) {
-  const clean = rutClean(value);
-  if (!clean) return "";
-
-  if (clean.length <= 1) return clean;
-
-  const cuerpo = clean.slice(0, -1);
-  const dv = clean.slice(-1);
-
-  const rev = cuerpo.split("").reverse();
-  let conPuntos = "";
-  for (let i = 0; i < rev.length; i++) {
-    if (i > 0 && i % 3 === 0) conPuntos = "." + conPuntos;
-    conPuntos = rev[i] + conPuntos;
-  }
-
-  return `${conPuntos}-${dv}`;
-}
-
-// calcula dígito verificador y compara
-function rutIsValid(value) {
-  const clean = rutClean(value);
-  if (clean.length < 2) return false;
-
-  const cuerpo = clean.slice(0, -1);
-  const dv = clean.slice(-1);
-
-  let suma = 0;
-  let multiplicador = 2;
-
-  for (let i = cuerpo.length - 1; i >= 0; i--) {
-    suma += parseInt(cuerpo[i], 10) * multiplicador;
-    multiplicador = multiplicador === 7 ? 2 : multiplicador + 1;
-  }
-
-  const resto = 11 - (suma % 11);
-  const dvEsperado =
-    resto === 11 ? "0" : resto === 10 ? "K" : String(resto);
-
-  return dv === dvEsperado;
-}
-
-// para mandar al backend: xxxxxxxx-x (sin puntos)
-function rutNormalizeBackend(value) {
-  const clean = rutClean(value);
-  if (clean.length < 2) return clean;
-  const cuerpo = clean.slice(0, -1);
-  const dv = clean.slice(-1);
-  return `${cuerpo}-${dv}`;
-}
 
 export default function ClientesForm({ setView, setSelectedCliente }) {
   const { auth, backendURL } = useAuth();
@@ -96,46 +40,47 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
 
   const buildPayload = () => ({
     razon_social: (razonSocial || "").trim(),
-    rut,
+    // al backend SIEMPRE normalizado: xxxxxxxx-x
+    rut: rutNormalizeBackend(rut),
     direccion: (direccion || "").trim(),
     telefono: (telefono || "").trim(),
     correo_electronico: (correo || "").trim(),
     forma_pago: (formaPago || "").trim(),
   });
 
-const crearCliente = async () => {
-  const payload = buildPayload();
-  console.log("payload cliente:", payload); // para depurar
+  const crearCliente = async () => {
+    const payload = buildPayload();
+    console.log("payload cliente:", payload);
 
-  const res = await authFetch(`${backendURL}/clientes`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    token: auth?.access,
-    body: JSON.stringify(payload),
-  });
+    const res = await authFetch(`${backendURL}/clientes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      token: auth?.access,
+      body: JSON.stringify(payload),
+    });
 
-  if (!res.ok) {
-    let msg = `Error ${res.status} al crear cliente`;
-    try {
-      const data = await res.json();
-      console.log("error backend crear cliente:", data);
-      if (typeof data === "object" && data !== null) {
-        const parts = [];
-        for (const [k, v] of Object.entries(data)) {
-          parts.push(`${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+    if (!res.ok) {
+      let msg = `Error ${res.status} al crear cliente`;
+      try {
+        const data = await res.json();
+        console.log("error backend crear cliente:", data);
+        if (typeof data === "object" && data !== null) {
+          const parts = [];
+          for (const [k, v] of Object.entries(data)) {
+            parts.push(`${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+          }
+          if (parts.length) msg = parts.join(" | ");
         }
-        if (parts.length) msg = parts.join(" | ");
+      } catch {
+        // ignorar parse error
       }
-    } catch {
-      // ignorar parse error
+      throw new Error(msg);
     }
-    throw new Error(msg);
-  }
 
-  return res.json();
-};
+    return res.json();
+  };
 
   const onGuardar = async (modo = "guardar") => {
     if (!razonSocial.trim()) {
@@ -308,6 +253,8 @@ const crearCliente = async () => {
     </AdminLayout>
   );
 }
+
+
 
 
 
