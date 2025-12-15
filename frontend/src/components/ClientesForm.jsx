@@ -1,4 +1,3 @@
-// src/components/ClientesForm.jsx
 import { useState } from "react";
 import AdminLayout from "./layout/AdminLayout";
 import { useAuth } from "../context/AuthContext";
@@ -8,7 +7,7 @@ import {
   rutFormat,
   rutIsValid,
   rutNormalizeBackend,
-} from "../lib/rut";
+} from "../utils/rut";
 
 const FORMA_PAGO_OPCIONES = [
   { value: "", label: "---------" },
@@ -40,7 +39,7 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
 
   const buildPayload = () => ({
     razon_social: (razonSocial || "").trim(),
-    // al backend SIEMPRE normalizado: xxxxxxxx-x
+    // SIEMPRE enviamos normalizado: xxxxxxxx-X
     rut: rutNormalizeBackend(rut),
     direccion: (direccion || "").trim(),
     telefono: (telefono || "").trim(),
@@ -151,7 +150,7 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
 
   const handleRutChange = (e) => {
     const raw = e.target.value;
-    const formatted = rutFormat(raw);
+    const formatted = rutFormat(raw); // mantiene xx.xxx.xxx-x
     setRut(formatted);
   };
 
@@ -253,6 +252,7 @@ export default function ClientesForm({ setView, setSelectedCliente }) {
     </AdminLayout>
   );
 }
+
 
 
 

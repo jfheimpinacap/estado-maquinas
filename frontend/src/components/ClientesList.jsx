@@ -1,9 +1,8 @@
-// src/components/ClientesList.jsx
 import AdminLayout from "./layout/AdminLayout";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
-import { rutFormat } from "../lib/rut";
+import { rutFormat } from "../utils/rut";
 
 export default function ClientesList({ setView, setSelectedCliente }) {
   const [clientes, setClientes] = useState([]);
@@ -78,7 +77,7 @@ export default function ClientesList({ setView, setSelectedCliente }) {
               clientes.map((c) => (
                 <tr key={c.id}>
                   <td>{c.razon_social}</td>
-                  <td>{c.rut ? rutFormat(c.rut) : "—"}</td>
+                  <td>{rutFormat(c.rut)}</td>
                   <td>{c.direccion || "—"}</td>
                   <td>{c.correo_electronico || "—"}</td>
                   <td>{c.telefono || "—"}</td>
@@ -104,90 +103,5 @@ export default function ClientesList({ setView, setSelectedCliente }) {
   );
 }
 
-// OJO: si en tu proyecto VerCliente está en otro archivo, déjalo separado.
-// Aquí solo muestro cómo formatear el RUT en la ficha:
-
-export function VerCliente({ cliente, setView, setSelectedCliente }) {
-  if (!cliente) {
-    return (
-      <AdminLayout
-        setView={setView}
-        title="Datos del cliente"
-        breadcrumbs={<>Clientes / Ficha</>}
-      >
-        <div className="fieldset">
-          <p className="help-text">No se ha seleccionado cliente.</p>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  return (
-    <AdminLayout
-      setView={setView}
-      title="Datos del cliente"
-      breadcrumbs={<>Clientes / Ficha</>}
-      actions={
-        <>
-          <button
-            className="btn btn-ghost"
-            onClick={() => {
-              setSelectedCliente(cliente);
-              setView("editar-cliente");
-            }}
-          >
-            Editar
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => setView("ver-movimientos")}
-          >
-            Ver movimientos
-          </button>
-        </>
-      }
-    >
-      <div className="fieldset">
-        <div className="legend">Identificación</div>
-
-        <div className="form-row">
-          <div className="label">Razón Social</div>
-          <div className="control">{cliente.razon_social || "—"}</div>
-        </div>
-
-        <div className="form-row">
-          <div className="label">RUT</div>
-          <div className="control">
-            {cliente.rut ? rutFormat(cliente.rut) : "—"}
-          </div>
-        </div>
-      </div>
-
-      <div className="fieldset">
-        <div className="legend">Contacto</div>
-
-        <div className="form-row">
-          <div className="label">Dirección</div>
-          <div className="control">{cliente.direccion || "—"}</div>
-        </div>
-
-        <div className="form-row">
-          <div className="label">Teléfono</div>
-          <div className="control">{cliente.telefono || "—"}</div>
-        </div>
-
-        <div className="form-row">
-          <div className="label">Correo electrónico</div>
-          <div className="control">{cliente.correo_electronico || "—"}</div>
-        </div>
-
-        <div className="form-row">
-          <div className="label">Forma de pago</div>
-          <div className="control">{cliente.forma_pago || "—"}</div>
-        </div>
-      </div>
-    </AdminLayout>
-  );
-}
 
 

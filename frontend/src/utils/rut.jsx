@@ -1,4 +1,4 @@
-// src/lib/rut.jsx
+// src/utils/rut.jsx
 // Utilidades de RUT compartidas por formularios y búsquedas
 
 // deja solo dígitos y K/k

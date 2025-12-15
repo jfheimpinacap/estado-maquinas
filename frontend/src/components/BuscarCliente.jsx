@@ -1,8 +1,11 @@
-// src/components/BuscarCliente.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { authFetch } from "../lib/api";
-import { rutFormat, isRutLike } from "../lib/rut";
+import {
+  rutFormat,
+  rutNormalizeBackend,
+  isRutLike,
+} from "../utils/rut";
 
 export default function BuscarCliente({ setView, setSelectedCliente }) {
   const [query, setQuery] = useState("");
@@ -19,9 +22,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
     const q = localStorage.getItem("buscar:lastQuery") || "";
     const raw = localStorage.getItem("buscar:lastResults");
     if (raw) {
-      // si parece RUT, lo mostramos formateado
-      const display = isRutLike(q) ? rutFormat(q) : q;
-      setQuery(display);
+      setQuery(q);
       try {
         const parsed = JSON.parse(raw);
         setResultados(Array.isArray(parsed) ? parsed : []);
@@ -54,13 +55,26 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
 
   const handleBuscar = async () => {
     try {
-      const term = query.trim();
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(term)}`;
+      let q = (query || "").trim();
+      if (!q) {
+        setResultados([]);
+        return;
+      }
+
+      // Si parece RUT, se normaliza para backend
+      let qBackend = q;
+      if (isRutLike(q)) {
+        qBackend = rutNormalizeBackend(q);
+      }
+
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(
+        qBackend
+      )}`;
       const res = await authFetch(url, { token: auth.access });
       if (!res.ok) throw new Error("Error al buscar clientes");
       const data = await res.json();
       setResultados(Array.isArray(data) ? data : []);
-      localStorage.setItem("buscar:lastQuery", term);
+      localStorage.setItem("buscar:lastQuery", q);
       localStorage.setItem("buscar:lastResults", JSON.stringify(data));
       setPage(1);
     } catch (error) {
@@ -99,8 +113,19 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
     fontSize: "0.8rem",
   };
 
+  const handleChangeQuery = (e) => {
+    const raw = e.target.value;
+    // Si parece RUT, se va formateando; si no, se deja como texto libre
+    if (isRutLike(raw)) {
+      setQuery(rutFormat(raw));
+    } else {
+      setQuery(raw);
+    }
+  };
+
   return (
     <>
+      {/* Título unificado */}
       <header className="page-header">
         <h1 className="page-title">Buscar cliente</h1>
       </header>
@@ -120,20 +145,11 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                     className="input"
                     placeholder="Razón social o RUT"
                     value={query}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (isRutLike(raw)) {
-                        setQuery(rutFormat(raw));
-                      } else {
-                        setQuery(raw);
-                      }
-                    }}
+                    onChange={handleChangeQuery}
                     onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
                   />
                   <small className="help-text">
-                    Escribe un nombre o un RUT. Si escribes un RUT, se
-                    formateará como xx.xxx.xxx-x y la búsqueda lo entenderá
-                    igual.
+                    Presiona Enter para buscar rápidamente.
                   </small>
                 </div>
               </div>
@@ -200,7 +216,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                     paginaResultados.map((c) => (
                       <tr key={c.id}>
                         <td>{c.razon_social}</td>
-                        <td>{c.rut ? rutFormat(c.rut) : "—"}</td>
+                        <td>{rutFormat(c.rut)}</td>
                         <td>{c.direccion || "—"}</td>
                         <td>{c.correo_electronico || "—"}</td>
                         <td>{c.telefono || "—"}</td>
@@ -222,6 +238,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                 </tbody>
               </table>
 
+              {/* Paginación */}
               {totalRegistros > 0 && (
                 <div
                   style={{
@@ -289,7 +306,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
           </div>
         </div>
 
-        {/* Columna derecha: Filtro (placeholder por ahora) */}
+        {/* Columna derecha simple */}
         <aside className="admin-filter">
           <div className="admin-filter__title">FILTRO</div>
           <div style={{ padding: 8 }}>
@@ -299,36 +316,13 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
                 Clientes encontrados: {totalRegistros}
               </div>
             </details>
-
-            <details className="mt-2" open>
-              <summary>Por forma de pago</summary>
-              <ul style={{ marginTop: 6, paddingLeft: 16, lineHeight: 1.8 }}>
-                <li>
-                  <button onClick={() => alert("Filtro: Todo")}>Todo</button>
-                </li>
-                <li>
-                  <button onClick={() => alert("Pago a 15 días")}>
-                    Pago a 15 días
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => alert("Pago a 30 días")}>
-                    Pago a 30 días
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => alert("Pago contado")}>
-                    Pago contado
-                  </button>
-                </li>
-              </ul>
-            </details>
           </div>
         </aside>
       </div>
     </>
   );
 }
+
 
 
 
