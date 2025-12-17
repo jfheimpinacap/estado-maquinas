@@ -8,6 +8,7 @@ const TIPO_OT = [
   { value: "ALTA", label: "Arriendo" },
   { value: "SERV", label: "Venta" },
   { value: "TRAS", label: "Traslado" },
+  { value: "RETIRO", label: "Retiro" }, // 🔹 nuevo tipo
 ];
 
 const UNIDADES = [
@@ -21,6 +22,13 @@ const TIPO_FLETE = [
   { value: "entrega_retiro", label: "Entrega y retiro" },
   { value: "solo_traslado", label: "Solo traslado" },
 ];
+
+// Datos de la empresa para OT de RETIRO
+const CLIENTE_EMPRESA = {
+  rut: "16.357.179-K",
+  razon: "Franz Heim SPA",
+  direccion: "Bodega 4061, Macul",
+};
 
 function nuevaLinea() {
   return {
@@ -114,12 +122,17 @@ export default function CrearOT() {
   const { auth, backendURL } = useAuth();
   const [saving, setSaving] = useState(false);
 
-  // N° de OT sugerido
+  // "NUEVA" | "RETIRO" | "EDITAR"
+  const [modo, setModo] = useState("NUEVA");
+
+  // N° de OT sugerido (solo UI)
   const [otNumero, setOtNumero] = useState("");
 
   // Datos generales OT
   const [tipo, setTipo] = useState("ALTA");
+  const [fechaEmision, setFechaEmision] = useState(""); // para guía / retiro
   const [clienteTerm, setClienteTerm] = useState("");
+  const [ordenCompra, setOrdenCompra] = useState("");
   const [obra, setObra] = useState("");
   const [direccion, setDireccion] = useState("");
   const [contactos, setContactos] = useState("");
@@ -142,7 +155,8 @@ export default function CrearOT() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalLineaId, setModalLineaId] = useState(null);
   const [maquinasDisponibles, setMaquinasDisponibles] = useState([]);
-  const [maquinaSeleccionadaId, setMaquinaSeleccionadaId] = useState(null);
+  const [maquinaSeleccionadaId, setMaquinaSeleccionadaId] =
+    useState(null);
 
   const usedSeries = useMemo(
     () => items.map((it) => (it.serie || "").trim()).filter(Boolean),
@@ -151,17 +165,23 @@ export default function CrearOT() {
 
   // ❗ AHORA no filtramos por estado, solo evitamos repetir series usadas
   const listasPorCategoria = useMemo(() => {
-    const base = Array.isArray(maquinasDisponibles) ? maquinasDisponibles : [];
+    const base = Array.isArray(maquinasDisponibles)
+      ? maquinasDisponibles
+      : [];
 
     const filtradas = base.filter(
       (m) => !usedSeries.includes((m.serie || "").trim())
     );
 
     return {
-      elevadores: filtradas.filter((m) => m.categoria === "equipos_altura"),
+      elevadores: filtradas.filter(
+        (m) => m.categoria === "equipos_altura"
+      ),
       camiones: filtradas.filter((m) => m.categoria === "camiones"),
       otras: filtradas.filter(
-        (m) => m.categoria !== "equipos_altura" && m.categoria !== "camiones"
+        (m) =>
+          m.categoria !== "equipos_altura" &&
+          m.categoria !== "camiones"
       ),
     };
   }, [maquinasDisponibles, usedSeries]);
@@ -220,6 +240,16 @@ export default function CrearOT() {
     cerrarModal();
   };
 
+  // --------- Cambio de TIPO OT (incluye Retiro) ---------
+  const handleChangeTipo = (nuevoTipo) => {
+    setTipo(nuevoTipo);
+    if (nuevoTipo === "RETIRO") {
+      const cliLabel = `${CLIENTE_EMPRESA.rut} – ${CLIENTE_EMPRESA.razon}`;
+      setClienteTerm(cliLabel);
+      setDireccion((prev) => prev || CLIENTE_EMPRESA.direccion);
+    }
+  };
+
   // --------- HANDLERS LÍNEAS ---------
 
   const handleChangeItem = (id, field, value) => {
@@ -229,7 +259,8 @@ export default function CrearOT() {
         const updated = { ...it, [field]: value };
 
         if (["unidad", "cantidadPeriodo", "desde"].includes(field)) {
-          const unidadActual = field === "unidad" ? value : updated.unidad;
+          const unidadActual =
+            field === "unidad" ? value : updated.unidad;
           if (unidadActual !== "Especial") {
             const cantidad =
               field === "cantidadPeriodo"
@@ -267,14 +298,18 @@ export default function CrearOT() {
     if (!serie) return;
 
     try {
-      const url = `${backendURL}/maquinarias?query=${encodeURIComponent(serie)}`;
+      const url = `${backendURL}/maquinarias?query=${encodeURIComponent(
+        serie
+      )}`;
       const res = await authFetch(url, { token: auth?.access });
       if (!res.ok) throw new Error("Error al buscar maquinarias");
       let data = await res.json();
       if (!Array.isArray(data)) data = [];
 
       const exact = data.find(
-        (m) => String(m.serie || "").toLowerCase() === serie.toLowerCase()
+        (m) =>
+          String(m.serie || "").toLowerCase() ===
+          serie.toLowerCase()
       );
 
       if (!exact) {
@@ -332,12 +367,126 @@ export default function CrearOT() {
     );
   }, [items]);
 
+  // --------- Inicializar desde localStorage (EDITAR / RETIRO) ---------
+  useEffect(() => {
+    // 1) Intentar cargar OT a editar (rellena formulario pero sigue creando una nueva OT)
+    try {
+      const rawEdit = localStorage.getItem("ot_editar_ot");
+      if (rawEdit) {
+        const ot = JSON.parse(rawEdit);
+        localStorage.removeItem("ot_editar_ot");
+
+        setModo("EDITAR");
+        handleChangeTipo(ot.tipo || "ALTA");
+
+        const rutCli = ot.rut_cliente || ot.cliente_rut || "";
+        const razonCli =
+          ot.cliente_razon_social || ot.cliente_nombre || "";
+        if (rutCli || razonCli) {
+          setClienteTerm(
+            rutCli && razonCli
+              ? `${rutCli} – ${razonCli}`
+              : rutCli || razonCli
+          );
+        } else if (ot.meta_cliente) {
+          setClienteTerm(ot.meta_cliente);
+        }
+
+        setOrdenCompra(ot.orden_compra || ot.oc || "");
+        setObra(ot.obra_nombre || ot.meta_obra || "");
+        setDireccion(ot.direccion || ot.meta_direccion || "");
+        setContactos(ot.contactos || ot.meta_contactos || "");
+        setObservaciones(ot.observaciones || "");
+
+        const det = Array.isArray(ot.detalle_lineas)
+          ? ot.detalle_lineas
+          : Array.isArray(ot.lineas)
+          ? ot.lineas
+          : [];
+
+        if (det.length > 0) {
+          setItems(
+            det.map((l, idx) => ({
+              id: `${Date.now()}-${idx}`,
+              serie: l.serie || "",
+              maquinaInfo: null,
+              unidad: l.unidad || "Dia",
+              cantidadPeriodo:
+                l.cantidadPeriodo != null ? l.cantidadPeriodo : 1,
+              desde: l.desde || "",
+              hasta: l.hasta || "",
+              valor:
+                l.valor != null && l.valor !== ""
+                  ? String(l.valor)
+                  : "",
+              flete:
+                l.flete != null && l.flete !== ""
+                  ? String(l.flete)
+                  : "",
+              tipoFlete: l.tipoFlete || "entrega_retiro",
+            }))
+          );
+        }
+
+        toast.info("Editando OT basada en una existente.");
+        return; // si estamos en edición, no aplicamos modo RETIRO
+      }
+    } catch (e) {
+      console.error("Error al leer ot_editar_ot desde localStorage", e);
+    }
+
+    // 2) Intentar cargar borrador de RETIRO
+    try {
+      const rawRetiro = localStorage.getItem("ot_borrador_retiro");
+      if (rawRetiro) {
+        const borr = JSON.parse(rawRetiro);
+        localStorage.removeItem("ot_borrador_retiro");
+
+        setModo("RETIRO");
+        handleChangeTipo("RETIRO");
+
+        // obra original de donde se retira
+        setObra(borr.obra || "");
+        setOrdenCompra(borr.orden_compra || "");
+
+        // Fecha sugerida desde el documento original (si viene)
+        setFechaEmision(
+          borr.doc_fecha ? String(borr.doc_fecha).slice(0, 10) : ""
+        );
+
+        setItems([
+          {
+            ...nuevaLinea(),
+            serie: borr.serie || "",
+            unidad: "Dia",
+            cantidadPeriodo: 1,
+            desde: borr.desde || "",
+            hasta: borr.hasta || "",
+            valor: "",
+            flete: "",
+          },
+        ]);
+
+        toast.info("OT de Retiro preparada desde estado de arriendos.");
+      }
+    } catch (e) {
+      console.error(
+        "Error al leer ot_borrador_retiro desde localStorage",
+        e
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --------- CORRELATIVO N° OT (solo UI) ---------
   useEffect(() => {
     const fetchNextNumero = async () => {
       try {
         const res = await authFetch(`${backendURL}/ordenes`, {
+          method: "GET",
+          backendURL,
           token: auth?.access,
+          refreshToken: auth?.refresh,
         });
         if (!res.ok) throw new Error("Error al obtener correlativo OT");
         const data = await res.json();
@@ -381,7 +530,9 @@ export default function CrearOT() {
     }
     try {
       setClienteBuscando(true);
-      const url = `${backendURL}/clientes?query=${encodeURIComponent(term)}`;
+      const url = `${backendURL}/clientes?query=${encodeURIComponent(
+        term
+      )}`;
       const res = await authFetch(url, { token: auth?.access });
       if (!res.ok) throw new Error("Error al buscar clientes");
       const data = await res.json();
@@ -397,6 +548,12 @@ export default function CrearOT() {
 
   // Efecto: cada vez que cambia clienteTerm, disparamos búsqueda con pequeño debounce
   useEffect(() => {
+    // En modo RETIRO, el cliente es siempre la empresa → no buscamos sugerencias
+    if (tipo === "RETIRO") {
+      setClienteSugerencias([]);
+      return;
+    }
+
     const raw = (clienteTerm || "").trim();
     if (!raw) {
       setClienteSugerencias([]);
@@ -432,7 +589,7 @@ export default function CrearOT() {
     }, 300);
 
     return () => clearTimeout(handle);
-  }, [clienteTerm]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clienteTerm, tipo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClienteInputChange = (e) => {
     const value = e.target.value;
@@ -519,14 +676,15 @@ export default function CrearOT() {
     setSaving(true);
     try {
       const payload = {
-        // Por ahora el número de OT es solo de referencia en el frontend,
-        // NO se envía al backend para evitar errores de validación.
+        // El número de OT es solo referencia en frontend.
         tipo,
         observaciones,
         meta_cliente: clienteTerm,
         meta_obra: obra,
         meta_direccion: direccion,
         meta_contactos: contactos,
+        meta_orden_compra: ordenCompra,
+        meta_fecha_emision: fechaEmision || null, // 🔹 se usará para la guía más adelante
         lineas: items.map((it) => ({
           serie: it.serie,
           unidad: it.unidad,
@@ -551,16 +709,28 @@ export default function CrearOT() {
         throw new Error(txt || `Error ${res.status} al crear la OT`);
       }
 
-      // Mensaje con número
-      if (numeroActual) {
-        toast.success(`Orden de trabajo N°${numeroActual} ha sido creada`);
+      if (tipo === "RETIRO") {
+        toast.success(
+          numeroActual
+            ? `OT de Retiro N°${numeroActual} ha sido creada`
+            : "OT de Retiro ha sido creada."
+        );
       } else {
-        toast.success("Orden de trabajo ha sido creada.");
+        if (numeroActual) {
+          toast.success(
+            `Orden de trabajo N°${numeroActual} ha sido creada`
+          );
+        } else {
+          toast.success("Orden de trabajo ha sido creada.");
+        }
       }
 
       // Limpiar formulario para nueva OT
+      setModo("NUEVA");
       setTipo("ALTA");
+      setFechaEmision("");
       setClienteTerm("");
+      setOrdenCompra("");
       setObra("");
       setDireccion("");
       setContactos("");
@@ -604,7 +774,11 @@ export default function CrearOT() {
           {/* Datos generales + Observaciones */}
           <div className="admin-card">
             <div className="fieldset">
-              <div className="legend">Crear orden de trabajo</div>
+              <div className="legend">
+                {modo === "RETIRO"
+                  ? "Crear orden de trabajo – RETIRO"
+                  : "Crear orden de trabajo"}
+              </div>
 
               {/* N° OT (correlativo sugerido) */}
               <div className="form-row">
@@ -617,8 +791,8 @@ export default function CrearOT() {
                     placeholder="Número sugerido de orden de trabajo"
                   />
                   <div className="help-text">
-                    Se asigna automáticamente un número correlativo, pero puedes
-                    ajustarlo manualmente si lo necesitas.
+                    Se asigna automáticamente un número correlativo, pero
+                    puedes ajustarlo manualmente si lo necesitas.
                   </div>
                 </div>
               </div>
@@ -630,7 +804,7 @@ export default function CrearOT() {
                   <select
                     className="select"
                     value={tipo}
-                    onChange={(e) => setTipo(e.target.value)}
+                    onChange={(e) => handleChangeTipo(e.target.value)}
                   >
                     {TIPO_OT.map((t) => (
                       <option key={t.value} value={t.value}>
@@ -639,8 +813,25 @@ export default function CrearOT() {
                     ))}
                   </select>
                   <div className="help-text">
-                    Arriendo, Venta o Traslado (Axxxx / Vxxxx / Txxxx se define
-                    en backend).
+                    Arriendo, Venta, Traslado o Retiro (Axxxx / Vxxxx /
+                    Txxxx / Rxxxx se define en backend).
+                  </div>
+                </div>
+              </div>
+
+              {/* Fecha de emisión (guía / retiro) */}
+              <div className="form-row">
+                <div className="label">Fecha de emisión (guía)</div>
+                <div className="control">
+                  <input
+                    type="date"
+                    className="input input--date"
+                    value={fechaEmision}
+                    onChange={(e) => setFechaEmision(e.target.value)}
+                  />
+                  <div className="help-text">
+                    Fecha que se utilizará como referencia para la guía de
+                    despacho (especialmente para despachos y retiros).
                   </div>
                 </div>
               </div>
@@ -672,6 +863,7 @@ export default function CrearOT() {
                         placeholder="RUT (xx.xxx.xxx-x) o nombre"
                         value={clienteTerm}
                         onChange={handleClienteInputChange}
+                        disabled={tipo === "RETIRO"}
                       />
 
                       {/* Lista de sugerencias */}
@@ -703,7 +895,8 @@ export default function CrearOT() {
                               }
                             >
                               <div>
-                                <strong>{cli.rut}</strong> – {cli.razon_social}
+                                <strong>{cli.rut}</strong> –{" "}
+                                {cli.razon_social}
                               </div>
                             </button>
                           ))}
@@ -731,9 +924,27 @@ export default function CrearOT() {
                         minWidth: "7rem",
                         alignSelf: "stretch",
                       }}
+                      disabled={tipo === "RETIRO"}
                     >
                       Buscar
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Orden de compra */}
+              <div className="form-row">
+                <div className="label">Orden de compra</div>
+                <div className="control">
+                  <input
+                    className="input"
+                    value={ordenCompra}
+                    maxLength={30}
+                    onChange={(e) => setOrdenCompra(e.target.value)}
+                    placeholder="OC del cliente (opcional)"
+                  />
+                  <div className="help-text">
+                    Puede contener letras y números (hasta 30 caracteres).
                   </div>
                 </div>
               </div>
@@ -824,15 +1035,16 @@ export default function CrearOT() {
                     </div>
                     {it.maquinaInfo ? (
                       <div className="help-text">
-                        {it.maquinaInfo.marca} {it.maquinaInfo.modelo || ""}{" "}
+                        {it.maquinaInfo.marca}{" "}
+                        {it.maquinaInfo.modelo || ""}{" "}
                         {it.maquinaInfo.altura
                           ? `– ${it.maquinaInfo.altura} m`
                           : ""}
                       </div>
                     ) : (
                       <div className="help-text">
-                        Puedes ingresar la serie o usar el buscador para ver las
-                        máquinas disponibles.
+                        Puedes ingresar la serie o usar el buscador para
+                        ver las máquinas disponibles.
                       </div>
                     )}
                   </div>
@@ -875,8 +1087,8 @@ export default function CrearOT() {
                     </div>
                     <div className="help-text">
                       Ej.: 6 días, 1 semana, 2 semanas, 1 mes (30 días
-                      corridos). En &quot;Arriendo especial&quot; ajustas las
-                      fechas manualmente.
+                      corridos). En &quot;Arriendo especial&quot; ajustas
+                      las fechas manualmente.
                     </div>
                   </div>
                 </div>
@@ -938,7 +1150,11 @@ export default function CrearOT() {
                       className="select"
                       value={it.tipoFlete}
                       onChange={(e) =>
-                        handleChangeItem(it.id, "tipoFlete", e.target.value)
+                        handleChangeItem(
+                          it.id,
+                          "tipoFlete",
+                          e.target.value
+                        )
                       }
                     >
                       {TIPO_FLETE.map((t) => (
@@ -1006,7 +1222,9 @@ export default function CrearOT() {
                 disabled={saving}
                 onClick={handleGuardar}
               >
-                CREAR ORDEN DE TRABAJO
+                {modo === "RETIRO"
+                  ? "CREAR OT DE RETIRO"
+                  : "CREAR ORDEN DE TRABAJO"}
               </button>
             </div>
           </div>
@@ -1034,15 +1252,21 @@ export default function CrearOT() {
                     </div>
                     <div className="ot-summary-line">
                       <span>Neto</span>
-                      <span>${econ.neto.toLocaleString("es-CL")}</span>
+                      <span>
+                        ${econ.neto.toLocaleString("es-CL")}
+                      </span>
                     </div>
                     <div className="ot-summary-line">
                       <span>IVA 19%</span>
-                      <span>${econ.iva.toLocaleString("es-CL")}</span>
+                      <span>
+                        ${econ.iva.toLocaleString("es-CL")}
+                      </span>
                     </div>
                     <div className="ot-summary-line ot-summary-total-line">
                       <span>Total</span>
-                      <span>${econ.total.toLocaleString("es-CL")}</span>
+                      <span>
+                        ${econ.total.toLocaleString("es-CL")}
+                      </span>
                     </div>
                   </div>
                 );
@@ -1055,15 +1279,21 @@ export default function CrearOT() {
               </div>
               <div className="ot-summary-line">
                 <span>Neto</span>
-                <span>${resumenGlobal.neto.toLocaleString("es-CL")}</span>
+                <span>
+                  ${resumenGlobal.neto.toLocaleString("es-CL")}
+                </span>
               </div>
               <div className="ot-summary-line">
                 <span>IVA 19%</span>
-                <span>${resumenGlobal.iva.toLocaleString("es-CL")}</span>
+                <span>
+                  ${resumenGlobal.iva.toLocaleString("es-CL")}
+                </span>
               </div>
               <div className="ot-summary-line ot-summary-total-line">
                 <span>Total</span>
-                <span>${resumenGlobal.total.toLocaleString("es-CL")}</span>
+                <span>
+                  ${resumenGlobal.total.toLocaleString("es-CL")}
+                </span>
               </div>
             </div>
           </div>
@@ -1073,7 +1303,10 @@ export default function CrearOT() {
       {/* MODAL DE MÁQUINAS DISPONIBLES */}
       {modalOpen && (
         <div className="ot-modal-backdrop" onClick={cerrarModal}>
-          <div className="ot-modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="ot-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="ot-modal-header">
               <div className="ot-modal-title">
                 Seleccionar máquina disponible
@@ -1096,7 +1329,9 @@ export default function CrearOT() {
                         type="button"
                         className={
                           "ot-machine-item" +
-                          (selected ? " ot-machine-item--selected" : "")
+                          (selected
+                            ? " ot-machine-item--selected"
+                            : "")
                         }
                         onClick={() => setMaquinaSeleccionadaId(m.id)}
                       >
@@ -1105,7 +1340,9 @@ export default function CrearOT() {
                         </div>
                         <div className="ot-machine-meta">
                           Serie: {m.serie || "—"}
-                          {m.altura ? ` · Altura: ${m.altura} m` : ""}
+                          {m.altura
+                            ? ` · Altura: ${m.altura} m`
+                            : ""}
                         </div>
                       </button>
                     );
@@ -1128,7 +1365,9 @@ export default function CrearOT() {
                         type="button"
                         className={
                           "ot-machine-item" +
-                          (selected ? " ot-machine-item--selected" : "")
+                          (selected
+                            ? " ot-machine-item--selected"
+                            : "")
                         }
                         onClick={() => setMaquinaSeleccionadaId(m.id)}
                       >
@@ -1137,7 +1376,9 @@ export default function CrearOT() {
                         </div>
                         <div className="ot-machine-meta">
                           Serie: {m.serie || "—"}
-                          {m.tonelaje ? ` · Tonelaje: ${m.tonelaje} t` : ""}
+                          {m.tonelaje
+                            ? ` · Tonelaje: ${m.tonelaje} t`
+                            : ""}
                         </div>
                       </button>
                     );
@@ -1147,10 +1388,14 @@ export default function CrearOT() {
 
               {/* Otras máquinas */}
               <div>
-                <div className="ot-modal-column-title">Otras máquinas</div>
+                <div className="ot-modal-column-title">
+                  Otras máquinas
+                </div>
                 <div className="ot-machine-list">
                   {listasPorCategoria.otras.length === 0 && (
-                    <div className="ot-machine-empty">Sin otras máquinas.</div>
+                    <div className="ot-machine-empty">
+                      Sin otras máquinas.
+                    </div>
                   )}
                   {listasPorCategoria.otras.map((m) => {
                     const selected = maquinaSeleccionadaId === m.id;
@@ -1160,7 +1405,9 @@ export default function CrearOT() {
                         type="button"
                         className={
                           "ot-machine-item" +
-                          (selected ? " ot-machine-item--selected" : "")
+                          (selected
+                            ? " ot-machine-item--selected"
+                            : "")
                         }
                         onClick={() => setMaquinaSeleccionadaId(m.id)}
                       >
@@ -1199,21 +1446,32 @@ export default function CrearOT() {
 
       {/* MODAL DE BÚSQUEDA DE CLIENTES */}
       {clienteModalOpen && (
-        <div className="ot-modal-backdrop" onClick={cerrarModalCliente}>
-          <div className="ot-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="ot-modal-backdrop"
+          onClick={cerrarModalCliente}
+        >
+          <div
+            className="ot-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="ot-modal-header">
               <div className="ot-modal-title">Buscar cliente</div>
             </div>
             <div className="fieldset" style={{ marginTop: 8 }}>
               <div className="form-row">
                 <div className="label">Término</div>
-                <div className="control" style={{ display: "flex", gap: 8 }}>
+                <div
+                  className="control"
+                  style={{ display: "flex", gap: 8 }}
+                >
                   <input
                     className="input"
                     placeholder="RUT (xx.xxx.xxx-x) o nombre"
                     value={clienteModalTerm}
                     onChange={(e) =>
-                      setClienteModalTerm(formatRutOnType(e.target.value))
+                      setClienteModalTerm(
+                        formatRutOnType(e.target.value)
+                      )
                     }
                     onKeyDown={(e) =>
                       e.key === "Enter" && buscarClienteEnModal()
@@ -1302,6 +1560,9 @@ export default function CrearOT() {
     </>
   );
 }
+
+
+
 
 
 

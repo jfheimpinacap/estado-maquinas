@@ -1,6 +1,8 @@
+# backend/estado_maquinas/settings.py
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta  # <<< NUEVO
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -63,10 +65,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'estado_maquinas.wsgi.application'
 
-# ---------- SQL Server (mssql-django) ----------
-import os
-
-
 # --- Base de datos: SQLite portable ---
 DATABASES = {
     "default": {
@@ -74,7 +72,6 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
-
 
 LANGUAGE_CODE = 'es-cl'
 TIME_ZONE = 'America/Santiago'
@@ -93,9 +90,19 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Opcional, pero explícito:
+# ---------- SIMPLE JWT ----------
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),  # el frontend ya envía 'Bearer <token>'
+
+    # Duración del access token (antes tal vez era 5 min por defecto)
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),   # <<< por ejemplo 8 horas
+
+    # Duración del refresh token
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),   # <<< por ejemplo 7 días
+
+    # Opcional: si quisieras rotar refresh tokens
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
 }
 
 # ---------- CORS ----------

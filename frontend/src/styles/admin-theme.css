@@ -684,6 +684,7 @@ body{
   background:rgba(255,255,255,.02);
   cursor:pointer;
   font-size:.88rem;
+  color:#e5e7eb;              /* texto claro sobre fondo oscuro */
 }
 
 .ot-machine-item:hover{
@@ -698,11 +699,13 @@ body{
 
 .ot-machine-title{
   font-weight:400;
+  color:#f9fafb;              /* casi blanco para el título */
 }
 
 .ot-machine-meta{
   font-size:.8rem;
-  opacity:.85;
+  opacity:.9;
+  color:#cbd5f5;              /* gris claro/azulado para detalles */
   margin-top:2px;
 }
 
