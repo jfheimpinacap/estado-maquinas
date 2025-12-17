@@ -238,11 +238,12 @@ class DocumentoViewSet(viewsets.ReadOnlyModelViewSet):
 
 class OrdenTrabajoViewSet(viewsets.ModelViewSet):
     """
-    - /ordenes                 -> listado general OT
+    - /ordenes                         -> listado general OT
     - /ordenes?solo_pendientes=1
     - /ordenes?solo_facturacion_pendiente=1
-    - /ordenes/estado-arriendos
-    - /ordenes/<pk>/emitir     -> emitir FACT / GD (venta, arriendo, traslado, retiro)
+    - /ordenes/estado-arriendos       -> estado de máquinas en arriendo
+    - /ordenes/estado-bodega          -> máquinas disponibles en bodega
+    - /ordenes/<pk>/emitir            -> emitir FACT / GD (venta, arriendo, traslado, retiro)
     """
 
     permission_classes = [IsAuthenticated]
@@ -317,7 +318,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             r["vendedor"] = vendedor
 
             # fecha de emisión sugerida (para GD/FACT)
-            r.setdefault("fecha_emision_doc", ot.fecha_emision_doc)
+            r.setdefault("fecha_emision_doc", getattr(ot, "fecha_emision_doc", None))
 
             filas.append(r)
         return filas
@@ -328,18 +329,21 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         Crear OT desde el formulario de CrearOT.jsx.
 
         Espera (entre otros):
-        - tipo: "ALTA" | "SERV" | "TRAS" | "RETI"
+        - tipo: "ALTA" | "SERV" | "TRAS" | "RETI" (o "RETIRO" desde el front)
         - meta_cliente: texto con RUT o razón social
         - meta_obra, meta_direccion, meta_contactos
         - meta_orden_compra
         - meta_fecha_emision: "YYYY-MM-DD" (opcional)
-        - arriendo_id (opcional pero recomendado para RETI)
+        - arriendo_id (opcional pero OBLIGATORIO en RETI)
         - lineas: [{serie, unidad, cantidadPeriodo, desde, hasta, valor, flete, tipoFlete}, ...]
         """
         data = request.data or {}
-        tipo = (data.get("tipo") or "ALTA").upper()
-        lineas = data.get("lineas") or []
 
+        tipo_raw = (data.get("tipo") or "ALTA").upper()
+        # Aceptamos "RETIRO" desde el front, pero guardamos "RETI" en BD
+        tipo = "RETI" if tipo_raw == "RETIRO" else tipo_raw
+
+        lineas = data.get("lineas") or []
         if not isinstance(lineas, list) or len(lineas) == 0:
             return Response(
                 {"detail": "Debes indicar al menos una máquina en 'lineas'."},
@@ -353,20 +357,62 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         meta_oc = data.get("meta_orden_compra") or ""
         meta_fecha_emision = data.get("meta_fecha_emision") or ""
         observaciones = data.get("observaciones") or ""
+
         arriendo_id = data.get("arriendo_id") or data.get("arriendo") or None
+
+        # ---------- Arriendo asociado (especialmente para RETI) ----------
+        arr = None
+        maquinaria_principal = None
+        if arriendo_id:
+            try:
+                arr = (
+                    Arriendo.objects.select_related("maquinaria", "obra", "cliente")
+                    .get(pk=arriendo_id)
+                )
+            except Arriendo.DoesNotExist:
+                return Response(
+                    {"detail": f"Arriendo asociado (id={arriendo_id}) no encontrado."},
+                    status=400,
+                )
+            if arr.maquinaria_id:
+                maquinaria_principal = arr.maquinaria
+
+            # Si no viene obra/dirección y hay arriendo, las tomamos desde ahí
+            if not meta_obra and arr.obra_id:
+                meta_obra = arr.obra.nombre
+            if not meta_direccion and arr.obra_id and arr.obra.direccion:
+                meta_direccion = arr.obra.direccion
+
+        # Para RETI sin arriendo asociado, avisamos explícitamente
+        if tipo == "RETI" and not arr:
+            return Response(
+                {
+                    "detail": (
+                        "Para una OT de tipo Retiro debes indicar el arriendo asociado. "
+                        "Usa el botón 'Retiro' desde Estado de arriendo de máquinas."
+                    )
+                },
+                status=400,
+            )
 
         # ---------- Resolver cliente ----------
         cli = None
-        if meta_cliente:
+
+        if tipo == "RETI" and arr and arr.cliente_id:
+            # En RETI usamos SIEMPRE el cliente del arriendo
+            cli = arr.cliente
+        elif meta_cliente:
             # Buscar un RUT en el texto: 11.111.111-1
             m = re.search(r"\d{1,3}(?:\.\d{3}){2}-[\dkK]", meta_cliente)
             if m:
                 rut = m.group(0)
                 cli = Cliente.objects.filter(rut__iexact=rut).first()
+
             # Si no lo encontramos por RUT, intentamos por razón social
             if not cli:
                 cli = Cliente.objects.filter(
-                    razon_social__icontains=meta_cliente
+                    Q(razon_social__icontains=meta_cliente)
+                    | Q(rut__icontains=meta_cliente)
                 ).first()
 
         if not cli:
@@ -385,7 +431,6 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         total_neto = Decimal("0")
         total_iva = Decimal("0")
         total_total = Decimal("0")
-        maquinaria_principal = None
 
         for l in lineas:
             serie = (l.get("serie") or "").strip()
@@ -472,39 +517,8 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             extra_kwargs["vendedor"] = data.get("vendedor") or ""
         if hasattr(OrdenTrabajo, "fecha_emision_doc"):
             extra_kwargs["fecha_emision_doc"] = fecha_emision_doc
-
-        # Si viene arriendo_id (caso RETI) tratamos de enlazar
-        arr = None
-        if arriendo_id:
-            try:
-                arr = Arriendo.objects.select_related("maquinaria", "obra", "cliente").get(
-                    pk=arriendo_id
-                )
-            except Arriendo.DoesNotExist:
-                return Response(
-                    {"detail": f"Arriendo asociado (id={arriendo_id}) no encontrado."},
-                    status=400,
-                )
+        if arr:
             extra_kwargs["arriendo"] = arr
-            # Si no viene obra/dirección, tomamos desde el arriendo
-            if not meta_obra and arr.obra_id:
-                meta_obra = arr.obra.nombre
-            if not meta_direccion and arr.obra_id and arr.obra.direccion:
-                meta_direccion = arr.obra.direccion
-            if maquinaria_principal is None and arr.maquinaria_id:
-                maquinaria_principal = arr.maquinaria
-
-        # Para RETI sin arriendo asociado, avisamos
-        if tipo == "RETI" and not arriendo_id:
-            return Response(
-                {
-                    "detail": (
-                        "Para una OT de tipo Retiro debes indicar el arriendo asociado. "
-                        "Usa el botón 'Retiro' desde Estado de arriendo de máquinas."
-                    )
-                },
-                status=400,
-            )
 
         ot = OrdenTrabajo.objects.create(
             tipo=tipo,
@@ -625,7 +639,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             )
 
         # Fecha de emisión: la que venga configurada en la OT o hoy
-        fecha_emision = ot.fecha_emision_doc or timezone.now().date()
+        fecha_emision = getattr(ot, "fecha_emision_doc", None) or timezone.now().date()
 
         # ------- EMITIR FACTURA -------
         if tipo_doc == "FACT":
@@ -752,7 +766,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             )
 
         arr = ot.arriendo
-        cliente = ot.cliente or arr.cliente
+        cliente = ot.cliente or (arr.cliente if arr and arr.cliente_id else None)
         if not cliente:
             return Response(
                 {"detail": "La orden no tiene cliente asociado."},
@@ -778,16 +792,16 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         # Obra origen/destino según tipo de OT
         if ot.tipo == "ALTA":
             obra_origen = None
-            obra_destino = arr.obra if arr.obra_id else None
+            obra_destino = arr.obra if arr and arr.obra_id else None
         elif ot.tipo == "TRAS":
             obra_origen = None
-            obra_destino = arr.obra if arr.obra_id else None
+            obra_destino = arr.obra if arr and arr.obra_id else None
         elif ot.tipo == "RETI":
-            obra_origen = arr.obra if arr.obra_id else None
+            obra_origen = arr.obra if arr and arr.obra_id else None
             obra_destino = None
             es_retiro = True
         else:
-            obra_origen = arr.obra if arr.obra_id else None
+            obra_origen = arr.obra if arr and arr.obra_id else None
             obra_destino = None
 
         with transaction.atomic():
@@ -849,8 +863,8 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         Devuelve la tabla para "Estado de arriendo de máquinas".
 
         Una FILA por ARRIENDO ACTIVO:
-        - Usa el ÚLTIMO documento del arriendo (FACT si existe, si no GD, etc.).
-        - Incluye RUT cliente, serie máquina y periodo desde/hasta.
+        - Usa el ÚLTIMO documento de guía de despacho (GD) del arriendo si existe.
+        - Muestra también la última FACTURA asociada en columnas separadas.
         - NO muestra arriendos que no tengan ningún documento.
         - NO muestra arriendos ya terminados (estado != 'Activo').
         """
@@ -883,55 +897,86 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         filas = []
 
         for arr in arr_qs.order_by("id"):
-            # Último documento asociado al arriendo
-            docs = list(
-                arr.documentos.all().order_by("fecha_emision", "id")
-            )
-            # 👉 Si no hay ningún documento, NO se muestra en Estado de arriendo
-            if not docs:
+            # Si el arriendo no tiene documentos, no se muestra
+            if not arr.documentos.exists():
                 continue
 
-            ultimo = docs[-1]
+            # Última guía de despacho (no retiro) del arriendo
+            gd = (
+                arr.documentos.filter(tipo="GD", es_retiro=False)
+                .order_by("fecha_emision", "id")
+                .last()
+            )
 
-            if ultimo.tipo == "FACT":
-                pref = "F"
-            elif ultimo.tipo == "GD":
-                pref = "G"
-            else:
-                pref = ultimo.get_tipo_display()[0]
+            # Última factura del arriendo
+            fact = (
+                arr.documentos.filter(tipo="FACT")
+                .order_by("fecha_emision", "id")
+                .last()
+            )
 
-            # numero viene "0001" -> mostramos "F0001" o "G0001"
-            doc_label = f"{pref}{ultimo.numero}"
+            # Helper para mostrar código amigable
+            def _label(doc):
+                if not doc:
+                    return ""
+                if doc.tipo == "FACT":
+                    pref = "F"
+                elif doc.tipo == "GD":
+                    pref = "G"
+                else:
+                    pref = doc.get_tipo_display()[0]
+                return f"{pref}{doc.numero}"
 
-            # Última OT asociada al
+            # Documento de movimiento: preferimos la GD; si no hay, usamos cualquier doc
+            ultimo_mov = gd or (
+                arr.documentos.order_by("fecha_emision", "id").last()
+            )
+
+            if not ultimo_mov:
+                continue
+
+            doc_label = _label(ultimo_mov)
+            doc_tipo = ultimo_mov.tipo
+            doc_numero = ultimo_mov.numero
+            doc_fecha = ultimo_mov.fecha_emision
+
+            factura_label = _label(fact) if fact else ""
+            factura_numero = fact.numero if fact else None
+            factura_fecha = fact.fecha_emision if fact else None
+
+            # Última OT asociada al arriendo
             ot = (
                 arr.ordenes.all()
                 .order_by("-fecha_creacion", "-id")
                 .first()
             )
             if ot:
-                pref_ot = (
-                    ot.tipo_comercial or (ot.tipo[:1] if ot.tipo else "OT")
-                )
+                pref_ot = ot.tipo_comercial or (ot.tipo[:1] if ot.tipo else "OT")
                 folio_ot = f"{pref_ot}{str(ot.id).zfill(4)}"
                 oc = getattr(ot, "orden_compra", "") or ""
                 vendedor = getattr(ot, "vendedor", "") or ""
                 ot_tipo = ot.tipo
             else:
-                folio_ot = "—"
+                folio_ot = ""
                 oc = ""
                 vendedor = ""
                 ot_tipo = ""
 
             filas.append(
                 {
-                    "id": arr.id,
-                    "documento": doc_label,
-                    "doc_tipo": ultimo.tipo,
-                    "doc_numero": ultimo.numero,
-                    "doc_fecha": ultimo.fecha_emision,
+                    "id": arr.id,  # id del arriendo
+                    "documento": doc_label or "—",
+                    "doc_tipo": doc_tipo,
+                    "doc_numero": doc_numero,
+                    "doc_fecha": doc_fecha,
+                    "factura": factura_label,
+                    "factura_numero": factura_numero,
+                    "factura_fecha": factura_fecha,
                     "marca": arr.maquinaria.marca if arr.maquinaria_id else "",
                     "modelo": arr.maquinaria.modelo if arr.maquinaria_id else "",
+                    "altura": getattr(arr.maquinaria, "altura", None)
+                    if arr.maquinaria_id
+                    else None,
                     "serie": arr.maquinaria.serie if arr.maquinaria_id else "",
                     "desde": arr.fecha_inicio,
                     "hasta": arr.fecha_termino,
@@ -939,6 +984,139 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
                     "rut_cliente": arr.cliente.rut if arr.cliente_id else "",
                     "obra": arr.obra.nombre if arr.obra_id else "",
                     "ot_id": ot.id if ot else None,
+                    "ot_folio": folio_ot,
+                    "orden_compra": oc,
+                    "vendedor": vendedor,
+                    "ot_tipo": ot_tipo,
+                }
+            )
+
+        return Response(filas, status=200)
+
+    # ------- BODEGA: máquinas disponibles -------
+    @action(detail=False, methods=["get"], url_path="estado-bodega")
+    def estado_bodega(self, request):
+        """
+        Devuelve la pestaña "Bodega" del Estado de máquinas.
+
+        Una FILA por MÁQUINA con estado 'Disponible':
+        - Cliente: empresa propia (para mostrar en la tabla).
+        - Obra: última obra donde estuvo la máquina (último arriendo).
+        - Documento: última guía de retiro (GD con es_retiro=True), si existe.
+        - Factura: última factura asociada a esa máquina, si existe.
+        - El resto de columnas (desde / hasta) se dejan en blanco.
+        """
+        q = (request.GET.get("query") or "").strip()
+
+        maq_qs = Maquinaria.objects.filter(estado__iexact="Disponible")
+
+        if q:
+            maq_qs = maq_qs.filter(
+                Q(marca__icontains=q)
+                | Q(modelo__icontains=q)
+                | Q(serie__icontains=q)
+            )
+
+        filas = []
+
+        for maq in maq_qs.order_by("marca", "modelo", "serie"):
+            # Último arriendo registrado (para saber la última obra)
+            arr_last = (
+                Arriendo.objects.filter(maquinaria=maq)
+                .select_related("obra", "cliente")
+                .order_by("-fecha_inicio", "-id")
+                .first()
+            )
+
+            # Última guía de RETIRO de esa máquina
+            gd_retiro = (
+                Documento.objects.filter(
+                    arriendo__maquinaria=maq,
+                    tipo="GD",
+                    es_retiro=True,
+                )
+                .order_by("fecha_emision", "id")
+                .last()
+            )
+
+            # Helper label
+            def _label(doc):
+                if not doc:
+                    return ""
+                if doc.tipo == "GD":
+                    pref = "G"
+                elif doc.tipo == "FACT":
+                    pref = "F"
+                else:
+                    pref = doc.get_tipo_display()[0]
+                return f"{pref}{doc.numero}"
+
+            doc_label = _label(gd_retiro)
+            doc_fecha = gd_retiro.fecha_emision if gd_retiro else None
+            doc_numero = gd_retiro.numero if gd_retiro else None
+            doc_tipo = gd_retiro.tipo if gd_retiro else None
+
+            # Última factura asociada a la máquina
+            fact = (
+                Documento.objects.filter(
+                    arriendo__maquinaria=maq,
+                    tipo="FACT",
+                )
+                .order_by("fecha_emision", "id")
+                .last()
+            )
+            factura_label = _label(fact) if fact else ""
+            factura_numero = fact.numero if fact else None
+            factura_fecha = fact.fecha_emision if fact else None
+
+            # OT asociada a la guía de retiro (si existe)
+            ot_retiro = (
+                OrdenTrabajo.objects.filter(guia=gd_retiro)
+                .order_by("-fecha_creacion", "-id")
+                .first()
+                if gd_retiro
+                else None
+            )
+            if ot_retiro:
+                pref_ot = ot_retiro.tipo_comercial or (
+                    ot_retiro.tipo[:1] if ot_retiro.tipo else "OT"
+                )
+                folio_ot = f"{pref_ot}{str(ot_retiro.id).zfill(4)}"
+                oc = getattr(ot_retiro, "orden_compra", "") or ""
+                vendedor = getattr(ot_retiro, "vendedor", "") or ""
+                ot_tipo = ot_retiro.tipo
+                ot_id = ot_retiro.id
+            else:
+                folio_ot = ""
+                oc = ""
+                vendedor = ""
+                ot_tipo = ""
+                ot_id = None
+
+            obra_nombre = ""
+            if arr_last and arr_last.obra_id:
+                obra_nombre = arr_last.obra.nombre
+
+            filas.append(
+                {
+                    "id": maq.id,  # aquí es id de la maquinaria
+                    "marca": maq.marca,
+                    "modelo": maq.modelo or "",
+                    "altura": getattr(maq, "altura", None),
+                    "serie": maq.serie or "",
+                    "cliente": "Franz Heim SPA",  # se puede parametrizar luego
+                    "rut_cliente": "16.357.179-K",
+                    "obra": obra_nombre,
+                    "desde": None,
+                    "hasta": None,
+                    "documento": doc_label,
+                    "doc_tipo": doc_tipo,
+                    "doc_numero": doc_numero,
+                    "doc_fecha": doc_fecha,
+                    "factura": factura_label,
+                    "factura_numero": factura_numero,
+                    "factura_fecha": factura_fecha,
+                    "ot_id": ot_id,
                     "ot_folio": folio_ot,
                     "orden_compra": oc,
                     "vendedor": vendedor,
@@ -1057,6 +1235,4 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.order_by("id")
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
-
-
 
