@@ -1,0 +1,69 @@
+/* ================================
+   Base: variables + reset
+   ================================ */
+
+/* --- Variables --- */
+:root{
+  --bg:#0f141a;
+  --text:#e6eaef;
+  --muted:#94a3b8;
+
+  --topbar-bg:#2a2f3a;
+  --topbar-text:#eaf3f9;
+  --topbar-h:46px;
+
+  --sidebar-bg:#293241;
+  --sidebar-sec:#3d5a80;
+  --sidebar-hover:#98c1d9;
+  --sidebar-w:240px;
+
+  --card-bg:#111827;
+  --card-border:#1f2937;
+
+  --input-bg:#0b1117;
+  --input-border:#39424e;
+  --focus-ring:#f1842d66;
+
+  --accent:#C94217;
+  --accent-contrast:#ffffff;
+  --accent-hover:#e75425;
+
+  --link:#9cc6ff;
+  --link-hover:#cfe3ff;
+
+  --radius:8px;
+  --radius-sm:6px;
+
+  --fx-1:0 1px 2px rgba(0,0,0,.25);
+  --fx-2:0 4px 12px rgba(0,0,0,.20);
+
+  --title-font:"Segoe UI", SegoeUI, system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+/* Modo claro */
+html.theme-light{
+  --bg:#f6f7f9;
+  --text:#111;
+  --muted:#6b7280;
+
+  --card-bg:#ffffff;
+  --card-border:#e5e7eb;
+
+  --input-bg:#ffffff;
+  --input-border:#d1d5db;
+
+  --link:#2563eb;
+  --link-hover:#1e40af;
+}
+
+/* --- Reset base --- */
+*{ box-sizing:border-box }
+html,body,#root{ height:100%; margin:0 }
+html{ font-size:13px }
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  line-height:1.35;
+  overflow-x:hidden;
+}

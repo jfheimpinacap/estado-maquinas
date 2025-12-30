@@ -119,8 +119,7 @@ const obtenerSeries = (o) => {
 const obtenerOrdenCompra = (o) =>
   o.meta_orden_compra || o.orden_compra || o.oc || "—";
 
-const obtenerContactos = (o) =>
-  o.contactos || o.meta_contactos || "";
+const obtenerContactos = (o) => o.contactos || o.meta_contactos || "";
 
 const obtenerMontoNeto = (o) => {
   if (o.monto_neto !== undefined && o.monto_neto !== null) {
@@ -159,14 +158,59 @@ const folioOT = (o) => {
   return `${pref}${suf}`;
 };
 
-const esArriendo = (o) =>
-  o.tipo === "ALTA" || o.tipo_comercial === "A";
+const esArriendo = (o) => o.tipo === "ALTA" || o.tipo_comercial === "A";
 
-const esVenta = (o) =>
-  o.tipo === "SERV" || o.tipo_comercial === "V";
+const esVenta = (o) => o.tipo === "SERV" || o.tipo_comercial === "V";
 
-const esTraslado = (o) =>
-  o.tipo === "TRAS" || o.tipo_comercial === "T";
+const esTraslado = (o) => o.tipo === "TRAS" || o.tipo_comercial === "T";
+
+// Documento/guía pendiente de facturar (para pestaña "pend-fact")
+const obtenerDocGuiaPendiente = (o) => {
+  const d =
+    o.guia_pendiente ||
+    o.doc_pendiente ||
+    o.documento_pendiente ||
+    o.guia ||
+    o.documento ||
+    null;
+
+  // Si viene ya como número o string simple
+  if (typeof d === "string" || typeof d === "number") {
+    return {
+      numero: String(d),
+      fecha:
+        o.fecha_guia ||
+        o.doc_fecha ||
+        o.fecha_documento ||
+        o.fecha_emision ||
+        null,
+    };
+  }
+
+  // Si viene como objeto
+  if (d && typeof d === "object") {
+    const numero =
+      d.numero || d.folio || d.doc_numero || d.nro_documento || "—";
+    const fecha =
+      d.fecha_emision || d.fecha || d.fecha_documento || d.doc_fecha || null;
+    return { numero, fecha };
+  }
+
+  // Último recurso: campos planos separados en la OT
+  const numeroPlano =
+    o.guia || o.doc_numero || o.documento_numero || o.doc || null;
+  const fechaPlano =
+    o.fecha_guia ||
+    o.doc_fecha ||
+    o.fecha_documento ||
+    o.fecha_emision ||
+    null;
+
+  return {
+    numero: numeroPlano ? String(numeroPlano) : "—",
+    fecha: fechaPlano,
+  };
+};
 
 export default function EstadoOrdenes({ setView }) {
   const { auth, backendURL } = useAuth();
@@ -190,10 +234,10 @@ export default function EstadoOrdenes({ setView }) {
     setLoading(true);
     try {
       const res = await authFetch(`${backendURL}/ordenes`, {
-        method: "GET",           // o POST/DELETE según corresponda
-        backendURL,              // <<< importante para saber dónde refrescar
-        token: auth?.access,     // access
-        refreshToken: auth?.refresh, // refresh  
+        method: "GET",
+        backendURL,
+        token: auth?.access,
+        refreshToken: auth?.refresh,
       });
       if (!res.ok) throw new Error("Error al cargar órdenes de trabajo");
       const data = await res.json();
@@ -254,8 +298,7 @@ export default function EstadoOrdenes({ setView }) {
     [ordenes, fTipo]
   );
 
-  const listaActual =
-    tab === "sin-doc" ? ordenesSinDocumento : ordenesFactPend;
+  const listaActual = tab === "sin-doc" ? ordenesSinDocumento : ordenesFactPend;
 
   // ===== Acciones UI =====
 
@@ -279,33 +322,61 @@ export default function EstadoOrdenes({ setView }) {
   const emitirOrdenBackend = async (ot, accion) => {
     const folio = folioOT(ot);
 
+    // Tipo de documento para el backend: GD = guía, FACT = factura
+    const tipoDocumento =
+      accion === "facturar" || accion === "emitir_factura" ? "FACT" : "GD";
+
     try {
-      const res = await authFetch(
-        `${backendURL}/ordenes/${ot.id}/emitir`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          token: auth?.access,
-          body: JSON.stringify({ accion }),
-        }
-      );
+      const res = await authFetch(`${backendURL}/ordenes/${ot.id}/emitir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        token: auth?.access,
+        body: JSON.stringify({
+          accion, // p.ej.: "guia_no_facturable", "guia_facturable", "facturar"
+          tipo_documento: tipoDocumento, // "GD" o "FACT"
+        }),
+      });
 
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        throw new Error(
-          txt || `Error ${res.status} al emitir documento`
-        );
+        throw new Error(txt || `Error ${res.status} al emitir documento`);
       }
 
-      // Es más seguro recargar la lista completa que asumir
-      // la estructura de la respuesta de backend.
+      // Intentamos leer el documento (guía o factura) que devuelve el backend
+      let numeroDoc = null;
+      let tipoDocRespuesta = tipoDocumento;
+
+      try {
+        const data = await res.json();
+        const d =
+          data.documento || data.doc || data.guia || data.factura || data;
+
+        if (d && typeof d === "object") {
+          numeroDoc =
+            d.numero || d.folio || d.doc_numero || d.nro_documento || null;
+          tipoDocRespuesta =
+            d.tipo_documento || d.tipo || tipoDocumento || null;
+        }
+      } catch {
+        // Si la respuesta no es JSON o está vacía, seguimos sin número
+      }
+
+      // Refrescamos listado
       await load();
 
-      if (accion === "facturar" || accion === "emitir_factura") {
-        toast.success(`Factura emitida para la orden ${folio}`);
+      const sufijoDoc = numeroDoc ? ` ${numeroDoc}` : "";
+      const esFactura =
+        tipoDocRespuesta === "FACT" ||
+        accion === "facturar" ||
+        accion === "emitir_factura";
+
+      if (esFactura) {
+        toast.success(
+          `Factura${sufijoDoc} emitida para la orden ${folio}`
+        );
       } else {
         toast.success(
-          `Guía de despacho emitida para la orden ${folio}`
+          `Guía de despacho${sufijoDoc} emitida para la orden ${folio}`
         );
       }
     } catch (e) {
@@ -314,18 +385,16 @@ export default function EstadoOrdenes({ setView }) {
     }
   };
 
-  const emitirDesdeModal = async (accion) => {
+  const emitirDesdeModal = async (accionUI) => {
     if (!otEmitir) return;
     const ot = otEmitir;
     const folio = folioOT(ot);
-
-    // pestaña en la que estamos
     const enPendFact = tab === "pend-fact";
 
     try {
       if (enPendFact) {
-        // Aquí siempre es emitir FACTURA de lo pendiente
-        if (accion === "cancelar") {
+        // Aquí siempre se emite FACTURA de lo pendiente
+        if (accionUI === "cancelar") {
           cerrarModalEmitir();
           return;
         }
@@ -335,34 +404,23 @@ export default function EstadoOrdenes({ setView }) {
       }
 
       // Tab "sin-doc"
-      if (esArriendo(ot)) {
-        if (accion === "no_facturable") {
-          await emitirOrdenBackend(ot, "guia_no_facturable");
-        } else if (accion === "facturable") {
-          toast.info(
-            "Por ahora se emitirá una guía NO facturable. El flujo de guía facturable se configurará más adelante."
-          );
-          await emitirOrdenBackend(ot, "guia_no_facturable");
+      if (esArriendo(ot) || esTraslado(ot)) {
+        if (accionUI === "cancelar") {
+          cerrarModalEmitir();
+          return;
         }
-        cerrarModalEmitir();
-        return;
-      }
 
-      if (esTraslado(ot)) {
-        if (accion === "no_facturable") {
+        if (accionUI === "no_facturable") {
           await emitirOrdenBackend(ot, "guia_no_facturable");
-        } else if (accion === "facturable") {
-          toast.info(
-            "Por ahora se emitirá una guía NO facturable. El flujo de guía facturable se configurará más adelante."
-          );
-          await emitirOrdenBackend(ot, "guia_no_facturable");
+        } else if (accionUI === "facturable") {
+          await emitirOrdenBackend(ot, "guia_facturable");
         }
         cerrarModalEmitir();
         return;
       }
 
       if (esVenta(ot)) {
-        if (accion === "cancelar") {
+        if (accionUI === "cancelar") {
           cerrarModalEmitir();
           return;
         }
@@ -405,6 +463,11 @@ export default function EstadoOrdenes({ setView }) {
   const montoNetoOTVer = otVer ? obtenerMontoNeto(otVer) : null;
   const montoIvaOTVer = otVer ? obtenerMontoIva(otVer) : null;
   const montoTotalOTVer = otVer ? obtenerMontoTotal(otVer) : null;
+
+  // Datos para el modal EMITIR (pestaña "pend-fact")
+  const docPendEmit = otEmitir ? obtenerDocGuiaPendiente(otEmitir) : null;
+
+  const colSpanTabla = tab === "pend-fact" ? 10 : 8;
 
   // ===== Render =====
   return (
@@ -468,10 +531,7 @@ export default function EstadoOrdenes({ setView }) {
 
           <div className="form-row">
             <div className="label" />
-            <div
-              className="control"
-              style={{ display: "flex", gap: 8 }}
-            >
+            <div className="control" style={{ display: "flex", gap: 8 }}>
               <button
                 className="btn btn-primary"
                 type="button"
@@ -510,6 +570,12 @@ export default function EstadoOrdenes({ setView }) {
                 <th>RUT cliente</th>
                 <th>Dirección / obra</th>
                 <th>Máquinas (serie)</th>
+                {tab === "pend-fact" && (
+                  <>
+                    <th>Documento</th>
+                    <th>Fecha dcto.</th>
+                  </>
+                )}
                 <th>OC</th>
                 <th>Acciones</th>
               </tr>
@@ -518,7 +584,7 @@ export default function EstadoOrdenes({ setView }) {
               {listaActual.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={colSpanTabla}
                     style={{
                       padding: "1rem",
                       textAlign: "center",
@@ -539,9 +605,8 @@ export default function EstadoOrdenes({ setView }) {
                   const direccion = obtenerDireccion(o);
                   const series = obtenerSeries(o);
                   const oc = obtenerOrdenCompra(o);
-
-                  const puedeEditar =
-                    tab === "sin-doc"; // en "Con facturación pendiente" NO se edita
+                  const docPend =
+                    tab === "pend-fact" ? obtenerDocGuiaPendiente(o) : null;
 
                   return (
                     <tr key={o.id}>
@@ -557,6 +622,14 @@ export default function EstadoOrdenes({ setView }) {
                               <div key={idx}>{s}</div>
                             ))}
                       </td>
+
+                      {tab === "pend-fact" && (
+                        <>
+                          <td>{docPend?.numero || "—"}</td>
+                          <td>{formatearFecha(docPend?.fecha)}</td>
+                        </>
+                      )}
+
                       <td>{oc}</td>
                       <td>
                         <div
@@ -580,7 +653,6 @@ export default function EstadoOrdenes({ setView }) {
                           >
                             Emitir
                           </button>
-                          {/* Aquí podrías agregar botón Eliminar si corresponde */}
                         </div>
                       </td>
                     </tr>
@@ -594,10 +666,7 @@ export default function EstadoOrdenes({ setView }) {
 
       {/* MODAL VER OT */}
       {otVer && (
-        <div
-          className="ot-modal-backdrop"
-          onClick={cerrarModalVer}
-        >
+        <div className="ot-modal-backdrop" onClick={cerrarModalVer}>
           <div
             className="ot-modal"
             onClick={(e) => e.stopPropagation()}
@@ -624,16 +693,12 @@ export default function EstadoOrdenes({ setView }) {
 
               <div className="form-row">
                 <div className="label">Fecha creación</div>
-                <div className="control">
-                  {fechaCreacionOTVer}
-                </div>
+                <div className="control">{fechaCreacionOTVer}</div>
               </div>
 
               <div className="form-row">
                 <div className="label">Cliente</div>
-                <div className="control">
-                  {obtenerCliente(otVer)}
-                </div>
+                <div className="control">{obtenerCliente(otVer)}</div>
               </div>
 
               <div className="form-row">
@@ -645,9 +710,7 @@ export default function EstadoOrdenes({ setView }) {
 
               <div className="form-row">
                 <div className="label">Obra / dirección</div>
-                <div className="control">
-                  {obtenerDireccion(otVer)}
-                </div>
+                <div className="control">{obtenerDireccion(otVer)}</div>
               </div>
 
               <div className="form-row">
@@ -704,7 +767,9 @@ export default function EstadoOrdenes({ setView }) {
                           <tr key={idx}>
                             <td>{l.serie || "—"}</td>
                             <td>{l.unidad || "—"}</td>
-                            <td>{l.cantidadPeriodo || l.cantidad || "—"}</td>
+                            <td>
+                              {l.cantidadPeriodo || l.cantidad || "—"}
+                            </td>
                             <td>{formatearFecha(l.desde)}</td>
                             <td>{formatearFecha(l.hasta)}</td>
                             <td>{mostrarMonto(l.valor)}</td>
@@ -792,10 +857,12 @@ export default function EstadoOrdenes({ setView }) {
               {tab === "pend-fact" ? (
                 <>
                   <p style={{ marginBottom: 8 }}>
-                    Orden de trabajo con guía de despacho N°xxxx.
+                    Orden de trabajo con guía de despacho N°
+                    {docPendEmit?.numero || "—"}.
                   </p>
                   <p>
-                    Al confirmar se emitirá <strong>Factura N°xxxx</strong>.
+                    Al confirmar se emitirá la{" "}
+                    <strong>Factura electrónica</strong> asociada a esta guía.
                   </p>
                 </>
               ) : esArriendo(otEmitir) ? (
@@ -806,8 +873,8 @@ export default function EstadoOrdenes({ setView }) {
                   </p>
                   <p>
                     Se emitirá una{" "}
-                    <strong>Guía de despacho (Gxxxx)</strong> para la
-                    salida de la máquina de bodega.
+                    <strong>Guía de despacho</strong> para la salida de
+                    la máquina de bodega.
                   </p>
                   <p style={{ marginTop: 8 }}>
                     ¿Cómo quieres registrar este movimiento?
@@ -919,6 +986,9 @@ export default function EstadoOrdenes({ setView }) {
     </>
   );
 }
+
+
+
 
 
 

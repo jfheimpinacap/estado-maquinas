@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -28,7 +28,6 @@ import InformesDocumentos from "./components/InformesDocumentos";
 
 import CrearOT from "./components/CrearOT";
 import EstadoOrdenes from "./components/EstadoOrdenes";
-
 import EstadoArriendoMaquinas from "./components/EstadoArriendoMaquinas";
 
 import { useAuth } from "./context/AuthContext";
@@ -38,9 +37,12 @@ import "./styles/admin-theme.css";
 import "./App.css";
 
 function AdminShell({
-  view, setView,
-  selectedCliente, setSelectedCliente,
-  selectedMaquina, setSelectedMaquina
+  view,
+  setView,
+  selectedCliente,
+  setSelectedCliente,
+  selectedMaquina,
+  setSelectedMaquina,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -49,18 +51,18 @@ function AdminShell({
     return () => document.documentElement.classList.remove("sidebar-open");
   }, [sidebarOpen]);
 
-  const closeSidebarIfOpen = () => { if (sidebarOpen) setSidebarOpen(false); };
+  const closeSidebarIfOpen = () => {
+    if (sidebarOpen) setSidebarOpen(false);
+  };
 
   return (
     <div className="admin-root">
-      <Topbar onToggleSidebar={() => setSidebarOpen(s => !s)} />
+      <Topbar onToggleSidebar={() => setSidebarOpen((s) => !s)} />
 
       <div className="admin-body" onClick={closeSidebarIfOpen}>
-        {/* ¡no envuelvas Sidebar con otro <aside>! */}
         <Sidebar setView={setView} />
 
-        <main className="admin-main" onClick={e => e.stopPropagation()}>
-          {/* encabezado opcional */}
+        <main className="admin-main" onClick={(e) => e.stopPropagation()}>
           {view === "buscar-cliente" && (
             <header className="page-header">
               <h1 className="page-title">Buscar cliente</h1>
@@ -68,19 +70,33 @@ function AdminShell({
             </header>
           )}
 
-          {/* Vistas */}
           {view === "crearMaquinaria" && <MaquinariaForm />}
+
           {view === "buscarMaquina" && (
-            <BuscarMaquina setView={setView} setSelectedMaquina={setSelectedMaquina} />
+            <BuscarMaquina
+              setView={setView}
+              setSelectedMaquina={setSelectedMaquina}
+            />
           )}
+
           {view === "historial-maquina" && (
-            <HistorialMaquina selectedMaquina={selectedMaquina} setView={setView} />
+            <HistorialMaquina
+              selectedMaquina={selectedMaquina}
+              setView={setView}
+            />
           )}
+
           {view === "crear-cliente" && <ClientesForm />}
+
           {view === "listar-clientes" && <ClientesList />}
+
           {view === "buscar-cliente" && (
-            <BuscarCliente setSelectedCliente={setSelectedCliente} setView={setView} />
+            <BuscarCliente
+              setSelectedCliente={setSelectedCliente}
+              setView={setView}
+            />
           )}
+
           {view === "editar-cliente" && (
             <EditarCliente
               selectedCliente={selectedCliente}
@@ -88,6 +104,7 @@ function AdminShell({
               setView={setView}
             />
           )}
+
           {view === "ver-cliente" && selectedCliente && (
             <VerCliente
               cliente={selectedCliente}
@@ -95,36 +112,50 @@ function AdminShell({
               setSelectedCliente={setSelectedCliente}
             />
           )}
+
           {view === "maquinarias-list" && (
             <MaquinariasList
               setView={setView}
               setSelectedMaquina={setSelectedMaquina}
             />
           )}
+
           {view === "ver-maquina" && (
             <VerMaquina
               setView={setView}
               selectedMaquina={selectedMaquina}
               setSelectedMaquina={setSelectedMaquina}
-           />
+            />
           )}
+
           {view === "editar-maquina" && (
             <EditarMaquina
               setView={setView}
               selectedMaquina={selectedMaquina}
               setSelectedMaquina={setSelectedMaquina}
-           />
-          )}          
+            />
+          )}
+
           {view === "buscar-documentos" && <BuscarDocumentos setView={setView} />}
+
           {view === "estado-ordenes" && <EstadoOrdenes setView={setView} />}
+
           {view === "informes-clientes" && <InformesClientes />}
+
           {view === "consulta-maquinarias" && <ConsultaMaquinarias />}
-          {view === "consulta-documentos" && <ConsultaDocumentos />} 
+
+          {view === "consulta-documentos" && <ConsultaDocumentos />}
+
           {view === "informes-documentos" && <InformesDocumentos />}
+
           {view === "crear-ot" && <CrearOT setView={setView} />}
-          {view === "estado-arriendo-maquinas" && <EstadoArriendoMaquinas />}
+
+          {view === "estado-arriendo-maquinas" && (
+            <EstadoArriendoMaquinas setView={setView} />
+          )}
         </main>
       </div>
+
       <ToastContainer />
     </div>
   );
@@ -136,6 +167,34 @@ export default function App() {
   const [selectedMaquina, setSelectedMaquina] = useState(null);
   const { auth } = useAuth();
 
+  // ✅ Componente para rutas “alias” que setean la vista una sola vez al entrar
+  const ShellRoute = ({ initialView }) => {
+    const didInit = useRef(false);
+
+    useEffect(() => {
+      // Solo al montar esta ruta (no forzar después cuando el usuario cambie vista por Sidebar)
+      if (!didInit.current && initialView) {
+        setView(initialView);
+        didInit.current = true;
+      }
+    }, [initialView]);
+
+    // Evitar “flash” de la vista anterior en el primer render
+    const effectiveView =
+      initialView && !didInit.current ? initialView : view;
+
+    return (
+      <AdminShell
+        view={effectiveView}
+        setView={setView}
+        selectedCliente={selectedCliente}
+        setSelectedCliente={setSelectedCliente}
+        selectedMaquina={selectedMaquina}
+        setSelectedMaquina={setSelectedMaquina}
+      />
+    );
+  };
+
   return (
     <>
       <Routes>
@@ -143,31 +202,72 @@ export default function App() {
           path="/login"
           element={auth?.user ? <Navigate to="/" replace /> : <AdminLogin />}
         />
+
+        {/* ✅ Ruta principal */}
         <Route
           path="/"
           element={
             auth?.user ? (
-              <AdminShell
-                view={view}
-                setView={setView}
-                selectedCliente={selectedCliente}
-                setSelectedCliente={setSelectedCliente}
-                selectedMaquina={selectedMaquina}
-                setSelectedMaquina={setSelectedMaquina}
-              />
+              <ShellRoute />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        {/* ✅ Rutas alias para que navigate() SÍ funcione */}
+        <Route
+          path="/ordenes/nueva"
+          element={
+            auth?.user ? (
+              <ShellRoute initialView="crear-ot" />
             ) : (
               <Navigate to="/login" replace />
             )
           }
         />
         <Route
+          path="/crear-ot"
+          element={
+            auth?.user ? (
+              <ShellRoute initialView="crear-ot" />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/estado-arriendo-maquinas"
+          element={
+            auth?.user ? (
+              <ShellRoute initialView="estado-arriendo-maquinas" />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/estado-ordenes"
+          element={
+            auth?.user ? (
+              <ShellRoute initialView="estado-ordenes" />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route
           path="*"
-          element={auth?.user ? <Navigate to="/" replace /> : <Navigate to="/login" replace />}
+          element={
+            auth?.user ? <Navigate to="/" replace /> : <Navigate to="/login" replace />
+          }
         />
       </Routes>
     </>
   );
 }
+
 
 
 

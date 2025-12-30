@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { authFetch } from "../lib/api";
 
 function formatearFecha(fecha) {
   if (!fecha) return "—";
@@ -15,20 +16,32 @@ function formatearFecha(fecha) {
 }
 
 export default function EstadoArriendoMaquinas() {
-  const { backendURL, authFetch } = useAuth();
+  const { backendURL, auth } = useAuth();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState("arriendo"); // "arriendo" | "bodega"
   const [rowsArriendo, setRowsArriendo] = useState([]);
   const [rowsBodega, setRowsBodega] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [sel, setSel] = useState(null); // fila seleccionada para el modal
+  const [sel, setSel] = useState(null);
+  const [hoverKey, setHoverKey] = useState(null);
+
+  // ⚙️ Ajusta esta ruta si tu CrearOT vive en otro path
+  const CREAR_OT_PATH = "/ordenes/nueva";
 
   const cellStyle = {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
     maxWidth: 180,
+  };
+
+  const tableBaseStyle = {
+    border: 0,
+    borderRadius: 0,
+    boxShadow: "none",
+    borderCollapse: "separate",
+    borderSpacing: 0,
   };
 
   async function cargarDatos(targetTab = "arriendo") {
@@ -39,7 +52,13 @@ export default function EstadoArriendoMaquinas() {
           ? `${backendURL}/ordenes/estado-bodega`
           : `${backendURL}/ordenes/estado-arriendos`;
 
-      const res = await authFetch(base);
+      const res = await authFetch(base, {
+        method: "GET",
+        backendURL,
+        token: auth?.access,
+        refreshToken: auth?.refresh,
+      });
+
       if (!res.ok) {
         console.error("Error al cargar estado:", res.status);
         return;
@@ -47,11 +66,8 @@ export default function EstadoArriendoMaquinas() {
       const data = await res.json();
       if (!Array.isArray(data)) return;
 
-      if (targetTab === "bodega") {
-        setRowsBodega(data);
-      } else {
-        setRowsArriendo(data);
-      }
+      if (targetTab === "bodega") setRowsBodega(data);
+      else setRowsArriendo(data);
     } catch (err) {
       console.error("Error de red en estado de arriendos:", err);
     } finally {
@@ -59,7 +75,6 @@ export default function EstadoArriendoMaquinas() {
     }
   }
 
-  // Carga inicial: arriendos
   useEffect(() => {
     cargarDatos("arriendo");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,22 +84,19 @@ export default function EstadoArriendoMaquinas() {
 
   const handleChangeTab = (nuevo) => {
     setTab(nuevo);
-    // Si esa pestaña no tiene datos aún, los cargamos
-    if (nuevo === "bodega" && rowsBodega.length === 0) {
-      cargarDatos("bodega");
-    }
-    if (nuevo === "arriendo" && rowsArriendo.length === 0) {
-      cargarDatos("arriendo");
-    }
+    if (nuevo === "bodega" && rowsBodega.length === 0) cargarDatos("bodega");
+    if (nuevo === "arriendo" && rowsArriendo.length === 0) cargarDatos("arriendo");
   };
 
-  const handleRetiroClick = (row) => {
-    // Guardamos un borrador para CrearOT.jsx
+  const handleRetiroClick = (e, row) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     const borrador = {
-      arriendo_id: row.id, // id del arriendo
+      arriendo_id: row.id, // en /estado-arriendos el id es del arriendo
       serie: row.serie || "",
       obra: row.obra || "",
-      orden_compra: row.orden_compra || "",
+      orden_compra: row.orden_compra || row.oc || "",
       doc_fecha: row.doc_fecha || null,
       desde: row.desde || null,
       hasta: row.hasta || null,
@@ -98,7 +110,8 @@ export default function EstadoArriendoMaquinas() {
       console.warn("No se pudo guardar ot_borrador_retiro:", err);
     }
 
-    navigate("/ordenes/nueva");
+    // ✅ Señal explícita para que CrearOT abra en modo Retiro
+    navigate(`${CREAR_OT_PATH}?tipo=RETIRO`);
   };
 
   return (
@@ -128,8 +141,7 @@ export default function EstadoArriendoMaquinas() {
               border: "none",
               cursor: "pointer",
               fontWeight: 600,
-              background:
-                tab === "arriendo" ? "rgba(201,66,23,0.9)" : "transparent",
+              background: tab === "arriendo" ? "rgba(201,66,23,0.9)" : "transparent",
               color: tab === "arriendo" ? "#fff" : "inherit",
             }}
           >
@@ -143,8 +155,7 @@ export default function EstadoArriendoMaquinas() {
               border: "none",
               cursor: "pointer",
               fontWeight: 600,
-              background:
-                tab === "bodega" ? "rgba(201,66,23,0.9)" : "transparent",
+              background: tab === "bodega" ? "rgba(201,66,23,0.9)" : "transparent",
               color: tab === "bodega" ? "#fff" : "inherit",
             }}
           >
@@ -153,16 +164,23 @@ export default function EstadoArriendoMaquinas() {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="admin-card">
+      {/* ✅ UNA sola tabla + última columna sticky (Acción) */}
+      <div className="admin-card" style={{ overflow: "hidden" }}>
         {loading && (
           <div className="admin-card-header">
             <span className="badge">Cargando...</span>
           </div>
         )}
 
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
+        <div className="ea-scroll">
+          <table
+            className="admin-table ea-table"
+            style={{
+              ...tableBaseStyle,
+              width: "100%",
+              minWidth: 2200, // mantiene tu tabla ancha
+            }}
+          >
             <thead>
               <tr>
                 <th>Marca / Modelo</th>
@@ -179,86 +197,83 @@ export default function EstadoArriendoMaquinas() {
                 <th>Fecha fact.</th>
                 <th>O/C Cliente</th>
                 <th>Vendedor</th>
-                <th style={{ textAlign: "center" }}>Acción</th>
+                <th className="ea-sticky-col" style={{ textAlign: "center" }}>
+                  Acción
+                </th>
               </tr>
             </thead>
+
             <tbody>
-              {currentRows.length === 0 && !loading && (
+              {currentRows.length === 0 && !loading ? (
                 <tr>
                   <td colSpan={15} style={{ textAlign: "center", padding: 12 }}>
                     No hay registros para mostrar.
                   </td>
                 </tr>
-              )}
+              ) : (
+                currentRows.map((row) => {
+                  const key = `${tab}-${row.id}`;
+                  const isHover = hoverKey === key;
+                  const hoverStyle = isHover ? { background: "rgba(255,255,255,.03)" } : undefined;
 
-              {currentRows.map((row) => (
-                <tr key={`${tab}-${row.id}`}>
-                  <td style={cellStyle}>
-                    {row.marca} {row.modelo}
-                  </td>
-                  <td style={cellStyle}>
-                    {row.altura != null ? Number(row.altura).toFixed(2) : "—"}
-                  </td>
-                  <td style={cellStyle}>{row.serie}</td>
-                  <td style={cellStyle}>{row.cliente}</td>
-                  <td style={cellStyle}>{row.obra}</td>
-                  <td style={cellStyle}>{formatearFecha(row.desde)}</td>
-                  <td style={cellStyle}>{formatearFecha(row.hasta)}</td>
-                  <td style={cellStyle}>{row.ot_folio || "—"}</td>
-                  <td style={cellStyle}>{row.documento || "—"}</td>
-                  <td style={cellStyle}>{formatearFecha(row.doc_fecha)}</td>
-                  <td style={cellStyle}>{row.factura || ""}</td>
-                  <td style={cellStyle}>
-                    {formatearFecha(row.factura_fecha)}
-                  </td>
-                  <td style={cellStyle}>{row.orden_compra || ""}</td>
-                  <td style={cellStyle}>{row.vendedor || ""}</td>
-                  <td style={{ padding: "4px 8px" }}>
-                    {tab === "arriendo" ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 6,
-                          justifyContent: "center",
-                          alignItems: "center",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs"
-                          onClick={() => setSel(row)}
-                          style={{ padding: "2px 8px", fontSize: "0.75rem" }}
-                        >
-                          Ver
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-warning btn-xs"
-                          onClick={() => handleRetiroClick(row)}
-                          style={{ padding: "2px 8px", fontSize: "0.75rem" }}
-                        >
-                          Retiro
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs"
-                        onClick={() => setSel(row)}
-                        style={{
-                          padding: "2px 8px",
-                          fontSize: "0.75rem",
-                          display: "block",
-                          margin: "0 auto",
-                        }}
-                      >
-                        Ver
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                  return (
+                    <tr
+                      key={key}
+                      onMouseEnter={() => setHoverKey(key)}
+                      onMouseLeave={() => setHoverKey(null)}
+                      style={hoverStyle}
+                    >
+                      <td style={cellStyle}>
+                        {row.marca} {row.modelo}
+                      </td>
+                      <td style={cellStyle}>
+                        {row.altura != null ? Number(row.altura).toFixed(2) : "—"}
+                      </td>
+                      <td style={cellStyle}>{row.serie}</td>
+                      <td style={cellStyle}>{row.cliente}</td>
+                      <td style={cellStyle}>{row.obra}</td>
+                      <td style={cellStyle}>{formatearFecha(row.desde)}</td>
+                      <td style={cellStyle}>{formatearFecha(row.hasta)}</td>
+                      <td style={cellStyle}>{row.ot_folio || "—"}</td>
+                      <td style={cellStyle}>{row.documento || "—"}</td>
+                      <td style={cellStyle}>{formatearFecha(row.doc_fecha)}</td>
+                      <td style={cellStyle}>{row.factura || ""}</td>
+                      <td style={cellStyle}>{formatearFecha(row.factura_fecha)}</td>
+                      <td style={cellStyle}>{row.orden_compra || ""}</td>
+                      <td style={cellStyle}>{row.vendedor || ""}</td>
+
+                      {/* ✅ Sticky cell (le aplicamos hover también) */}
+                      <td className="ea-sticky-col" style={hoverStyle}>
+                        <div className="ea-actions">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSel(row);
+                            }}
+                            style={{ padding: "2px 8px", fontSize: "0.75rem" }}
+                          >
+                            Ver
+                          </button>
+
+                          {tab === "arriendo" && (
+                            <button
+                              type="button"
+                              className="btn btn-warning btn-xs"
+                              onClick={(e) => handleRetiroClick(e, row)}
+                              style={{ padding: "2px 8px", fontSize: "0.75rem" }}
+                            >
+                              Retiro
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -266,15 +281,11 @@ export default function EstadoArriendoMaquinas() {
 
       {/* MODAL VER DETALLE */}
       {sel && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
+        <div className="modal-backdrop" onClick={() => setSel(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Detalle del movimiento / arriendo</h2>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => setSel(null)}
-              >
+              <h2 style={{ margin: 0 }}>Detalle del movimiento / arriendo</h2>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSel(null)}>
                 ✕
               </button>
             </div>
@@ -286,17 +297,14 @@ export default function EstadoArriendoMaquinas() {
                   <div>
                     <strong>Documento (movimiento)</strong>
                     <div>
-                      {sel.documento || "—"}{" "}
-                      {sel.doc_fecha && `· ${formatearFecha(sel.doc_fecha)}`}
+                      {sel.documento || "—"} {sel.doc_fecha && `· ${formatearFecha(sel.doc_fecha)}`}
                     </div>
                   </div>
                   <div>
                     <strong>Factura asociada</strong>
                     <div>
                       {sel.factura
-                        ? `${sel.factura} · ${formatearFecha(
-                            sel.factura_fecha
-                          )}`
+                        ? `${sel.factura} · ${formatearFecha(sel.factura_fecha)}`
                         : "Sin factura asociada"}
                     </div>
                   </div>
@@ -316,15 +324,13 @@ export default function EstadoArriendoMaquinas() {
               <section className="modal-section">
                 <h3>Maquinaria</h3>
                 <div>
-                  <strong>Marca / modelo:</strong>{" "}
-                  {sel.marca} {sel.modelo}
+                  <strong>Marca / modelo:</strong> {sel.marca} {sel.modelo}
                 </div>
                 <div>
                   <strong>Serie:</strong> {sel.serie || "—"}
                 </div>
                 <div>
-                  <strong>Altura:</strong>{" "}
-                  {sel.altura != null ? `${sel.altura} m` : "—"}
+                  <strong>Altura:</strong> {sel.altura != null ? `${sel.altura} m` : "—"}
                 </div>
               </section>
 
@@ -334,21 +340,17 @@ export default function EstadoArriendoMaquinas() {
                   <strong>Obra:</strong> {sel.obra || "—"}
                 </div>
                 <div>
-                  <strong>Periodo:</strong>{" "}
-                  {formatearFecha(sel.desde)} {" → "}{" "}
-                  {formatearFecha(sel.hasta)}
+                  <strong>Periodo:</strong> {formatearFecha(sel.desde)} {" → "} {formatearFecha(sel.hasta)}
                 </div>
               </section>
 
               <section className="modal-section">
                 <h3>Orden de trabajo</h3>
                 <div>
-                  <strong>OT:</strong> {sel.ot_folio || "—"}{" "}
-                  {sel.ot_tipo && `(${sel.ot_tipo})`}
+                  <strong>OT:</strong> {sel.ot_folio || "—"} {sel.ot_tipo && `(${sel.ot_tipo})`}
                 </div>
                 <div>
-                  <strong>O/C Cliente:</strong>{" "}
-                  {sel.orden_compra || "—"}
+                  <strong>O/C Cliente:</strong> {sel.orden_compra || "—"}
                 </div>
                 <div>
                   <strong>Vendedor:</strong> {sel.vendedor || "—"}
@@ -357,11 +359,7 @@ export default function EstadoArriendoMaquinas() {
             </div>
 
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setSel(null)}
-              >
+              <button type="button" className="btn btn-primary" onClick={() => setSel(null)}>
                 Cerrar
               </button>
             </div>
@@ -371,6 +369,14 @@ export default function EstadoArriendoMaquinas() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 
