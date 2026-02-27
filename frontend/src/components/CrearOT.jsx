@@ -907,6 +907,9 @@ export default function CrearOT() {
 
   return (
     <>
+      <header className="page-header">
+        <h1 className="page-title">Crear orden de trabajo</h1>
+      </header>
       <div className="ot-layout">
         {/* COLUMNA PRINCIPAL */}
         <div className="ot-main">
@@ -914,9 +917,7 @@ export default function CrearOT() {
           <div className="admin-card">
             <div className="fieldset">
               <div className="legend">
-                {modo === "RETIRO"
-                  ? "Crear orden de trabajo – RETIRO"
-                  : "Crear orden de trabajo"}
+                {modo === "RETIRO" ? "Datos generales – Retiro" : "Datos generales"}
               </div>
 
               {/* N° OT */}
@@ -1673,7 +1674,6 @@ export default function CrearOT() {
     </>
   );
 }
-
 
 
 

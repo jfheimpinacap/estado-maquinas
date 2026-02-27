@@ -116,12 +116,9 @@ export default function EstadoArriendoMaquinas() {
 
   return (
     <div className="admin-page">
-      <div className="admin-header">
-        <h1 className="admin-title">Estado de arriendo de máquinas</h1>
-        <p className="admin-subtitle">
-          Visualización de arriendos activos y máquinas en bodega.
-        </p>
-      </div>
+      <header className="page-header">
+        <h1 className="page-title">Estado de arriendo de máquinas</h1>
+      </header>
 
       {/* Tabs Arriendo / Bodega */}
       <div style={{ marginBottom: 12 }}>
@@ -369,7 +366,6 @@ export default function EstadoArriendoMaquinas() {
     </div>
   );
 }
-
 
 
 

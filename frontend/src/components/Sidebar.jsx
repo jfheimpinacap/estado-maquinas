@@ -53,6 +53,19 @@ export default function Sidebar({ setView }) {
         />
       </Section>
 
+      {/* ESTADO DE MÁQUINAS */}
+      <Section title="ESTADO DE MÁQUINAS">
+        <Row
+          label="Crear orden de trabajo"
+          onClick={() => setView("crear-ot")}
+        />
+        <Row
+          label="Estado de arriendos"
+          onClick={() => setView("estado-arriendo-maquinas")}
+        />
+        <Row label="Estado de ordenes" onClick={() => setView("estado-ordenes")} />
+      </Section>
+
       {/* DOCUMENTOS */}
       <Section title="DOCUMENTOS">
         <Row
@@ -60,16 +73,6 @@ export default function Sidebar({ setView }) {
           onClick={() => setView("consulta-documentos")}
         />
         <Row label="Informes" onClick={() => setView("informes-documentos")} />
-      </Section>
-
-      {/* ESTADO DE MÁQUINAS */}
-      <Section title="ESTADO DE MÁQUINAS">
-        <Row label="Crear OT" onClick={() => setView("crear-ot")} />
-        <Row
-          label="Estado arriendo máquinas"
-          onClick={() => setView("estado-arriendo-maquinas")}
-        />
-        <Row label="Estado de ordenes" onClick={() => setView("estado-ordenes")} />
       </Section>
 
       {/* ADMINISTRACIÓN → solo superadmin */}
@@ -81,7 +84,6 @@ export default function Sidebar({ setView }) {
     </aside>
   );
 }
-
 
 
 

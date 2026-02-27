@@ -63,13 +63,6 @@ function AdminShell({
         <Sidebar setView={setView} />
 
         <main className="admin-main" onClick={(e) => e.stopPropagation()}>
-          {view === "buscar-cliente" && (
-            <header className="page-header">
-              <h1 className="page-title">Buscar cliente</h1>
-              <div className="breadcrumbs">Clientes / Buscar</div>
-            </header>
-          )}
-
           {view === "crearMaquinaria" && <MaquinariaForm />}
 
           {view === "buscarMaquina" && (
@@ -267,7 +260,6 @@ export default function App() {
     </>
   );
 }
-
 
 
 

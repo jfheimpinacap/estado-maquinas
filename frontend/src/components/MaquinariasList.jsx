@@ -470,6 +470,9 @@ export default function MaquinariasList({ setView, setSelectedMaquina }) {
 
   return (
     <>
+      <header className="page-header">
+        <h1 className="page-title">Maquinarias</h1>
+      </header>
       {Filtros}
       <div className="admin-card">
         <div className="fieldset">
@@ -484,7 +487,6 @@ export default function MaquinariasList({ setView, setSelectedMaquina }) {
     </>
   );
 }
-
 
 
 
