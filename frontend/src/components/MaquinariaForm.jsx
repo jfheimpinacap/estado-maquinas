@@ -145,9 +145,12 @@ export default function MaquinariaForm({ setView }) {
 
   return (
     <>
+      <header className="page-header">
+        <h1 className="page-title">Añadir maquinaria</h1>
+      </header>
       <div className="admin-card">
         <div className="fieldset">
-          <div className="legend">Añadir maquinaria</div>
+          <div className="legend">Detalles de maquinaria</div>
 
           <div className="form-row">
             <div className="label">Categoría</div>
@@ -252,7 +255,6 @@ export default function MaquinariaForm({ setView }) {
     </>
   );
 }
-
 
 
 

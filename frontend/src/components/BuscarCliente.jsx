@@ -127,7 +127,7 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
     <>
       {/* Título unificado */}
       <header className="page-header">
-        <h1 className="page-title">Buscar cliente</h1>
+        <h1 className="page-title">Buscar Clientes</h1>
       </header>
 
       <div className="main-grid">
@@ -322,7 +322,6 @@ export default function BuscarCliente({ setView, setSelectedCliente }) {
     </>
   );
 }
-
 
 
 
