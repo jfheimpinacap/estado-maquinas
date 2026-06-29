@@ -359,13 +359,51 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == "emitir":
             return [CanEmitDocuments()]
-        return super().get_permissions()
+        if self.action == "destroy":
+            return [IsSuperUserOnly()]
+        return [IsAuthenticated()]
+
     serializer_class = OrdenTrabajoSerializer
     queryset = (
         OrdenTrabajo.objects.select_related(
             "cliente", "arriendo", "maquinaria", "factura", "guia"
         )
     )
+
+
+    def _has_emitted_documents(self, ot):
+        document_ids = {doc_id for doc_id in (ot.guia_id, ot.factura_id) if doc_id}
+        if not document_ids:
+            return False
+
+        pending_ids = set(document_ids)
+        while pending_ids:
+            related_ids = set(
+                Documento.objects.filter(relacionado_con_id__in=pending_ids)
+                .values_list("id", flat=True)
+            )
+            new_ids = related_ids - document_ids
+            if not new_ids:
+                break
+            document_ids.update(new_ids)
+            pending_ids = new_ids
+
+        return Documento.objects.filter(id__in=document_ids).exists()
+
+    def destroy(self, request, *args, **kwargs):
+        ot = self.get_object()
+        if self._has_emitted_documents(ot):
+            return Response(
+                {
+                    "detail": (
+                        "No se puede eliminar la Orden de Trabajo porque tiene "
+                        "documentos emitidos asociados."
+                    ),
+                    "code": "ot_has_emitted_documents",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
 
     def _enrich_ot_rows(self, queryset, base_data):
         filas = []
