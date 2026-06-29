@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -26,6 +26,7 @@ from .serializers import (
     DocumentoDetalleSerializer, OrdenTrabajoSerializer,
     UserSerializer
 )
+from .permissions import CanEmitDocuments, IsSuperUserOnly
 
 MAX_FAILED = 5
 
@@ -354,6 +355,11 @@ class DocumentoViewSet(viewsets.ReadOnlyModelViewSet):
 
 class OrdenTrabajoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == "emitir":
+            return [CanEmitDocuments()]
+        return super().get_permissions()
     serializer_class = OrdenTrabajoSerializer
     queryset = (
         OrdenTrabajo.objects.select_related(
@@ -1084,7 +1090,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
 #   Auth & Users
 # =======================
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsSuperUserOnly])
 def register(request):
     username = (request.data.get("username") or "").strip()
     password = request.data.get("password") or ""
@@ -1163,5 +1169,5 @@ def recover_start(request):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.order_by("id")
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsSuperUserOnly]
 
