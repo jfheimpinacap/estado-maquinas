@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from api.models import Arriendo, Cliente, Documento, OrdenTrabajo
+from api.models import Arriendo, Cliente, Documento, Maquinaria, OrdenTrabajo
 
 
 class CriticalPermissionTests(TestCase):
@@ -29,7 +29,7 @@ class CriticalPermissionTests(TestCase):
             "/auth/register", self._register_payload("created-anon"), format="json"
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 401)
         self.assertFalse(User.objects.filter(username="created-anon").exists())
 
     def test_normal_user_cannot_register_user(self):
@@ -55,14 +55,14 @@ class CriticalPermissionTests(TestCase):
     def test_normal_user_cannot_list_users(self):
         self.client.force_authenticate(user=self.normal_user)
 
-        response = self.client.get("/users/")
+        response = self.client.get("/users")
 
         self.assertEqual(response.status_code, 403)
 
     def test_staff_non_superuser_cannot_list_users(self):
         self.client.force_authenticate(user=self.staff_user)
 
-        response = self.client.get("/users/")
+        response = self.client.get("/users")
 
         self.assertEqual(response.status_code, 403)
 
@@ -132,7 +132,7 @@ class OrdenTrabajoDeletePermissionTests(TestCase):
         ot = self._create_ot()
         self.client.force_authenticate(user=self.normal_user)
 
-        response = self.client.delete(f"/ordenes/{ot.id}/")
+        response = self.client.delete(f"/ordenes/{ot.id}")
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(OrdenTrabajo.objects.filter(id=ot.id).exists())
@@ -141,7 +141,7 @@ class OrdenTrabajoDeletePermissionTests(TestCase):
         ot = self._create_ot()
         self.client.force_authenticate(user=self.staff_user)
 
-        response = self.client.delete(f"/ordenes/{ot.id}/")
+        response = self.client.delete(f"/ordenes/{ot.id}")
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(OrdenTrabajo.objects.filter(id=ot.id).exists())
@@ -150,7 +150,7 @@ class OrdenTrabajoDeletePermissionTests(TestCase):
         ot = self._create_ot()
         self.client.force_authenticate(user=self.superuser)
 
-        response = self.client.delete(f"/ordenes/{ot.id}/")
+        response = self.client.delete(f"/ordenes/{ot.id}")
 
         self.assertEqual(response.status_code, 204)
         self.assertFalse(OrdenTrabajo.objects.filter(id=ot.id).exists())
@@ -159,7 +159,7 @@ class OrdenTrabajoDeletePermissionTests(TestCase):
         ot, documento = self._create_documented_ot()
         self.client.force_authenticate(user=self.superuser)
 
-        response = self.client.delete(f"/ordenes/{ot.id}/")
+        response = self.client.delete(f"/ordenes/{ot.id}")
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data["code"], "ot_has_emitted_documents")
@@ -170,7 +170,7 @@ class OrdenTrabajoDeletePermissionTests(TestCase):
         ot, documento = self._create_documented_ot()
         self.client.force_authenticate(user=self.superuser)
 
-        response = self.client.delete(f"/ordenes/{ot.id}/")
+        response = self.client.delete(f"/ordenes/{ot.id}")
 
         self.assertEqual(response.status_code, 409)
         self.assertTrue(OrdenTrabajo.objects.filter(id=ot.id, guia=documento).exists())
@@ -192,6 +192,9 @@ class OrdenTrabajoWritePermissionTests(TestCase):
         self.cliente = Cliente.objects.create(
             razon_social="Cliente Escritura", rut="77.123.456-7"
         )
+        self.maquinaria = Maquinaria.objects.create(
+            marca="JLG", modelo="1930ES", serie="WRITE-001", estado="Disponible"
+        )
 
     def _valid_ot_payload(self):
         return {
@@ -201,6 +204,19 @@ class OrdenTrabajoWritePermissionTests(TestCase):
             "tipo_comercial": "V",
             "es_facturable": False,
             "detalle_lineas": [],
+            "lineas": [
+                {
+                    "serie": self.maquinaria.serie,
+                    "unidad": "Dia",
+                    "cantidadPeriodo": 1,
+                    "desde": "2026-01-01",
+                    "hasta": "2026-01-01",
+                    "valor": "10000.00",
+                    "flete": "0.00",
+                    "tipoFlete": "",
+                }
+            ],
+            "meta_cliente": f"{self.cliente.razon_social} {self.cliente.rut}",
             "monto_neto": "10000.00",
             "monto_iva": "1900.00",
             "monto_total": "11900.00",
@@ -223,12 +239,12 @@ class OrdenTrabajoWritePermissionTests(TestCase):
         ot = self._create_ot()
         self.client.force_authenticate(user=self.normal_user)
 
-        list_response = self.client.get("/ordenes/")
+        list_response = self.client.get("/ordenes")
         create_response = self.client.post(
-            "/ordenes/", self._valid_ot_payload(), format="json"
+            "/ordenes", self._valid_ot_payload(), format="json"
         )
         patch_response = self.client.patch(
-            f"/ordenes/{ot.id}/", {"observaciones": "No autorizado"}, format="json"
+            f"/ordenes/{ot.id}", {"observaciones": "No autorizado"}, format="json"
         )
 
         self.assertEqual(list_response.status_code, 200)
@@ -243,10 +259,10 @@ class OrdenTrabajoWritePermissionTests(TestCase):
         self.client.force_authenticate(user=self.staff_user)
 
         create_response = self.client.post(
-            "/ordenes/", self._valid_ot_payload(), format="json"
+            "/ordenes", self._valid_ot_payload(), format="json"
         )
         patch_response = self.client.patch(
-            f"/ordenes/{ot.id}/", {"observaciones": "Editada por staff"}, format="json"
+            f"/ordenes/{ot.id}", {"observaciones": "Editada por staff"}, format="json"
         )
 
         self.assertEqual(create_response.status_code, 201)
@@ -259,10 +275,10 @@ class OrdenTrabajoWritePermissionTests(TestCase):
         self.client.force_authenticate(user=self.superuser)
 
         create_response = self.client.post(
-            "/ordenes/", self._valid_ot_payload(), format="json"
+            "/ordenes", self._valid_ot_payload(), format="json"
         )
         patch_response = self.client.patch(
-            f"/ordenes/{ot.id}/", {"observaciones": "Editada por root"}, format="json"
+            f"/ordenes/{ot.id}", {"observaciones": "Editada por root"}, format="json"
         )
 
         self.assertEqual(create_response.status_code, 201)
@@ -284,7 +300,86 @@ class OrdenTrabajoWritePermissionTests(TestCase):
         ot = self._create_ot()
         self.client.force_authenticate(user=self.staff_user)
 
-        response = self.client.delete(f"/ordenes/{ot.id}/")
+        response = self.client.delete(f"/ordenes/{ot.id}")
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(OrdenTrabajo.objects.filter(id=ot.id).exists())
+
+
+class SensitiveReadPermissionTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.normal_user = User.objects.create_user(
+            username="read-normal", password="test-pass-123"
+        )
+        self.staff_user = User.objects.create_user(
+            username="read-staff", password="test-pass-123", is_staff=True
+        )
+        self.superuser = User.objects.create_superuser(
+            username="read-root", password="test-pass-123"
+        )
+        self.cliente = Cliente.objects.create(
+            razon_social="Cliente Lectura", rut="78.123.456-7"
+        )
+        self.maquinaria = Maquinaria.objects.create(
+            marca="Genie", modelo="GS-1930", serie="READ-001", estado="Disponible"
+        )
+        self.arriendo = Arriendo.objects.create(
+            cliente=self.cliente,
+            maquinaria=self.maquinaria,
+            fecha_inicio=date(2026, 1, 1),
+            fecha_termino=date(2026, 12, 31),
+            periodo="Dia",
+            tarifa="10000.00",
+            estado="Activo",
+        )
+        self.documento = Documento.objects.create(
+            tipo="GD",
+            numero="0099",
+            fecha_emision=date(2026, 1, 1),
+            monto_neto="0.00",
+            monto_iva="0.00",
+            monto_total="0.00",
+            arriendo=self.arriendo,
+            cliente=self.cliente,
+        )
+        self.orden = OrdenTrabajo.objects.create(
+            cliente=self.cliente,
+            maquinaria=self.maquinaria,
+            arriendo=self.arriendo,
+            guia=self.documento,
+            tipo="ALTA",
+            estado="PEND",
+            detalle_lineas=[],
+        )
+
+    def _assert_sensitive_read_statuses(self, user, expected_status):
+        self.client.force_authenticate(user=user)
+
+        responses = (
+            self.client.get("/documentos"),
+            self.client.get("/ordenes/estado-arriendos"),
+            self.client.get("/ordenes/estado-bodega"),
+            self.client.get(f"/maquinarias/{self.maquinaria.id}/historial"),
+        )
+
+        for response in responses:
+            self.assertEqual(response.status_code, expected_status)
+
+    def test_normal_authenticated_user_cannot_read_sensitive_resources(self):
+        self._assert_sensitive_read_statuses(self.normal_user, 403)
+
+    def test_staff_non_superuser_can_read_sensitive_resources(self):
+        self._assert_sensitive_read_statuses(self.staff_user, 200)
+
+    def test_superuser_can_read_sensitive_resources(self):
+        self._assert_sensitive_read_statuses(self.superuser, 200)
+
+    def test_normal_authenticated_user_keeps_general_read_access(self):
+        self.client.force_authenticate(user=self.normal_user)
+
+        ordenes_response = self.client.get("/ordenes")
+        maquinarias_response = self.client.get("/maquinarias")
+
+        self.assertEqual(ordenes_response.status_code, 200)
+        self.assertEqual(maquinarias_response.status_code, 200)
