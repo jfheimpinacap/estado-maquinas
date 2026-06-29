@@ -26,7 +26,7 @@ from .serializers import (
     DocumentoDetalleSerializer, OrdenTrabajoSerializer,
     UserSerializer
 )
-from .permissions import CanEmitDocuments, IsSuperUserOnly
+from .permissions import CanEmitDocuments, IsStaffOrSuperUser, IsSuperUserOnly
 
 MAX_FAILED = 5
 
@@ -361,6 +361,8 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             return [CanEmitDocuments()]
         if self.action == "destroy":
             return [IsSuperUserOnly()]
+        if self.action in ("create", "update", "partial_update"):
+            return [IsStaffOrSuperUser()]
         return [IsAuthenticated()]
 
     serializer_class = OrdenTrabajoSerializer
