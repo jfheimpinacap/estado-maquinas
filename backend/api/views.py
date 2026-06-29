@@ -218,7 +218,11 @@ class MaquinariaViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=["get"])
+    @action(
+        detail=True,
+        methods=["get"],
+        permission_classes=[IsStaffOrSuperUser],
+    )
     def historial(self, request, pk=None):
         try:
             maq = Maquinaria.objects.get(pk=pk)
@@ -314,7 +318,7 @@ class ArriendoViewSet(viewsets.ModelViewSet):
 #   Documentos (consulta)
 # =======================
 class DocumentoViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsStaffOrSuperUser]
     serializer_class = DocumentoDetalleSerializer
     queryset = (
         Documento.objects.select_related(
@@ -361,7 +365,13 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             return [CanEmitDocuments()]
         if self.action == "destroy":
             return [IsSuperUserOnly()]
-        if self.action in ("create", "update", "partial_update"):
+        if self.action in (
+            "create",
+            "update",
+            "partial_update",
+            "estado_arriendos",
+            "estado_bodega",
+        ):
             return [IsStaffOrSuperUser()]
         return [IsAuthenticated()]
 
