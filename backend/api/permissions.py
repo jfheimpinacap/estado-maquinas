@@ -16,6 +16,24 @@ class IsSuperUserOnly(BasePermission):
         )
 
 
+class IsStaffOrSuperUser(BasePermission):
+    """
+    Permite acceso solo a usuarios internos autenticados y activos.
+
+    Esta es una capa temporal mientras se implementan roles ERP reales:
+    Administrador, Jefatura, Operador y Consulta.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and user.is_active
+            and (user.is_staff or user.is_superuser)
+        )
+
+
 class CanEmitDocuments(BasePermission):
     """
     Permite emitir documentos solo a usuarios internos autenticados y activos.

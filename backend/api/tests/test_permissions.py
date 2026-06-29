@@ -175,3 +175,116 @@ class OrdenTrabajoDeletePermissionTests(TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertTrue(OrdenTrabajo.objects.filter(id=ot.id, guia=documento).exists())
         self.assertTrue(Documento.objects.filter(id=documento.id).exists())
+
+
+class OrdenTrabajoWritePermissionTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.normal_user = User.objects.create_user(
+            username="write-normal", password="test-pass-123"
+        )
+        self.staff_user = User.objects.create_user(
+            username="write-staff", password="test-pass-123", is_staff=True
+        )
+        self.superuser = User.objects.create_superuser(
+            username="write-root", password="test-pass-123"
+        )
+        self.cliente = Cliente.objects.create(
+            razon_social="Cliente Escritura", rut="77.123.456-7"
+        )
+
+    def _valid_ot_payload(self):
+        return {
+            "cliente": self.cliente.id,
+            "tipo": "SERV",
+            "estado": "PEND",
+            "tipo_comercial": "V",
+            "es_facturable": False,
+            "detalle_lineas": [],
+            "monto_neto": "10000.00",
+            "monto_iva": "1900.00",
+            "monto_total": "11900.00",
+            "observaciones": "OT válida para pruebas de permisos",
+        }
+
+    def _create_ot(self):
+        return OrdenTrabajo.objects.create(
+            cliente=self.cliente,
+            tipo="SERV",
+            estado="PEND",
+            tipo_comercial="V",
+            detalle_lineas=[],
+            monto_neto="10000.00",
+            monto_iva="1900.00",
+            monto_total="11900.00",
+        )
+
+    def test_normal_authenticated_user_can_list_but_cannot_create_or_edit_ot(self):
+        ot = self._create_ot()
+        self.client.force_authenticate(user=self.normal_user)
+
+        list_response = self.client.get("/ordenes/")
+        create_response = self.client.post(
+            "/ordenes/", self._valid_ot_payload(), format="json"
+        )
+        patch_response = self.client.patch(
+            f"/ordenes/{ot.id}/", {"observaciones": "No autorizado"}, format="json"
+        )
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(create_response.status_code, 403)
+        self.assertEqual(patch_response.status_code, 403)
+        self.assertFalse(
+            OrdenTrabajo.objects.filter(observaciones="No autorizado").exists()
+        )
+
+    def test_staff_non_superuser_can_create_and_edit_ot(self):
+        ot = self._create_ot()
+        self.client.force_authenticate(user=self.staff_user)
+
+        create_response = self.client.post(
+            "/ordenes/", self._valid_ot_payload(), format="json"
+        )
+        patch_response = self.client.patch(
+            f"/ordenes/{ot.id}/", {"observaciones": "Editada por staff"}, format="json"
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(patch_response.status_code, 200)
+        ot.refresh_from_db()
+        self.assertEqual(ot.observaciones, "Editada por staff")
+
+    def test_superuser_can_create_and_edit_ot(self):
+        ot = self._create_ot()
+        self.client.force_authenticate(user=self.superuser)
+
+        create_response = self.client.post(
+            "/ordenes/", self._valid_ot_payload(), format="json"
+        )
+        patch_response = self.client.patch(
+            f"/ordenes/{ot.id}/", {"observaciones": "Editada por root"}, format="json"
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(patch_response.status_code, 200)
+        ot.refresh_from_db()
+        self.assertEqual(ot.observaciones, "Editada por root")
+
+    def test_normal_user_still_cannot_emit_documents(self):
+        ot = self._create_ot()
+        self.client.force_authenticate(user=self.normal_user)
+
+        response = self.client.post(
+            f"/ordenes/{ot.id}/emitir", {"tipo_documento": "GD"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_non_superuser_still_cannot_delete_ot(self):
+        ot = self._create_ot()
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.delete(f"/ordenes/{ot.id}/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(OrdenTrabajo.objects.filter(id=ot.id).exists())
