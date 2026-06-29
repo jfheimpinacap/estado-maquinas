@@ -25,33 +25,46 @@ Incluye autenticación con **JWT** y un panel de **“Control de Usuarios”** e
 
 ---
 
-## 🚀 Instalación y ejecución
+## 🚀 Preparación local controlada
 
-El sistema incluye un script de arranque (`start.py`) que instala automáticamente todo lo necesario (Python venv, dependencias, Node, npm, etc.).  
-Esto permite correr el proyecto en **cualquier computador** sin configuraciones manuales adicionales.
+No uses `start.py` para desarrollo controlado: ese script puede instalar dependencias, ejecutar migraciones, levantar servidores y abrir el navegador automáticamente.
 
 1️⃣ Clonar el repositorio
 ```bash
 git clone https://github.com/jfheimpinacap/estado-maquinas.git
 cd estado-maquinas
 ```
----
-2️⃣ Ejecutar el instalador
-# Windows
+
+2️⃣ Crear y activar un entorno virtual manualmente
+```bash
+python -m venv backend/.venv
+source backend/.venv/bin/activate
 ```
-py start.py
+
+En Windows:
+```powershell
+py -m venv backend/.venv
+backend\.venv\Scripts\Activate.ps1
 ```
-El script se encargará de:
-- Crear el entorno virtual de Python (.venv)
-- Instalar dependencias de backend (requirements.txt)
-- Instalar Node, npm y dependencias de frontend (package.json)
-- Correr migraciones de Django
-- Iniciar frontend y backend en modo desarrollo
----
-3️⃣ Acceder a la aplicación
-- Backend (API): http://127.0.0.1:8000
-- Frontend (React): http://127.0.0.1:5173
----
+
+3️⃣ Instalar dependencias mínimas del backend
+```bash
+pip install -r backend/requirements.txt
+```
+
+4️⃣ Crear configuración local
+
+Revisa `backend/.env.example` y crea `backend/.env` con valores locales seguros. El archivo `.env` no debe versionarse.
+
+5️⃣ Ejecutar validaciones seguras antes de modificar datos
+```bash
+cd backend
+python manage.py check
+python manage.py showmigrations --plan
+```
+
+No ejecutes `makemigrations` ni `migrate` automáticamente durante esta preparación.
+
 ## 📂 Estructura de carpetas
 ```
 App web Estado de maquinas/
