@@ -1,6 +1,6 @@
 # backend/api/views.py
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Case, When, IntegerField, F, Value
+from django.db.models import Q, Case, When, IntegerField, F, Value, Exists, OuterRef
 from django.db.models.functions import Replace
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -35,6 +35,11 @@ from .permissions import (
 )
 
 MAX_FAILED = 5
+
+
+def _active_rentals():
+    """Legacy operational source for machinery that remains out on rent."""
+    return Arriendo.objects.filter(estado__iexact="Activo")
 
 
 class CriticalEntityViewSet(viewsets.ModelViewSet):
@@ -968,16 +973,12 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="estado-arriendos")
     def estado_arriendos(self, request):
-        hoy = timezone.now().date()
         q = (request.GET.get("query") or "").strip()
 
         arr_qs = (
-            Arriendo.objects.select_related("cliente", "maquinaria", "obra")
+            _active_rentals().select_related("cliente", "maquinaria", "obra")
             .prefetch_related("documentos", "ordenes")
-            .filter(
-                Q(estado__iexact="Activo")
-                & (Q(fecha_termino__isnull=True) | Q(fecha_termino__gte=hoy))
-            )
+            .filter(maquinaria_id__isnull=False)
         )
 
         if q:
@@ -1076,7 +1077,12 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="estado-bodega")
     def estado_bodega(self, request):
         q = (request.GET.get("query") or "").strip()
-        maq_qs = Maquinaria.objects.filter(estado__iexact="Disponible")
+        active_rental = _active_rentals().filter(maquinaria_id=OuterRef("pk"))
+        maq_qs = (
+            Maquinaria.objects.filter(estado__iexact="Disponible")
+            .annotate(_has_active_rental=Exists(active_rental))
+            .filter(_has_active_rental=False)
+        )
 
         if q:
             maq_qs = maq_qs.filter(
