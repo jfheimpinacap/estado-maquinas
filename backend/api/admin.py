@@ -12,27 +12,36 @@ from .models import (
 # Inlines
 # =======================
 
-class DocumentoInline(admin.TabularInline):
+class ProtectedInlineMixin:
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+class DocumentoInline(ProtectedInlineMixin, admin.TabularInline):
     model = Documento
     extra = 0
     fields = ("tipo", "numero", "fecha_emision", "monto_total", "relacionado_con", "es_retiro")
     show_change_link = True
 
-class ArriendoInlineForMaquinaria(admin.TabularInline):
+class ArriendoInlineForMaquinaria(ProtectedInlineMixin, admin.TabularInline):
     model = Arriendo
     extra = 0
     fields = ("cliente", "obra", "fecha_inicio", "fecha_termino", "periodo", "tarifa", "estado")
     autocomplete_fields = ("cliente", "obra")
     show_change_link = True
 
-class ArriendoInlineForObra(admin.TabularInline):
+class ArriendoInlineForObra(ProtectedInlineMixin, admin.TabularInline):
     model = Arriendo
     extra = 0
     fields = ("maquinaria", "cliente", "fecha_inicio", "fecha_termino", "periodo", "tarifa", "estado")
     autocomplete_fields = ("maquinaria", "cliente")
     show_change_link = True
 
-class ArriendoInlineForCliente(admin.TabularInline):
+class ArriendoInlineForCliente(ProtectedInlineMixin, admin.TabularInline):
     model = Arriendo
     extra = 0
     fields = ("maquinaria", "obra", "fecha_inicio", "fecha_termino", "periodo", "tarifa", "estado")
@@ -43,7 +52,19 @@ class ArriendoInlineForCliente(admin.TabularInline):
 # =======================
 # ModelAdmin
 # =======================
-class MaquinariaAdmin(admin.ModelAdmin):
+class NoCriticalDeletionAdminMixin:
+    """Impide borrado individual y masivo, incluso para superusuarios."""
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+
+class MaquinariaAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
     list_display = ("marca", "modelo", "serie", "categoria", "estado", "obra_actual", "anio")
     list_filter = ("categoria", "estado", "anio")
     search_fields = ("serie", "marca", "modelo")
@@ -61,7 +82,7 @@ class MaquinariaAdmin(admin.ModelAdmin):
         return arr.obra.nombre if arr and arr.obra_id else "Bodega"
 
 
-class ClienteAdmin(admin.ModelAdmin):
+class ClienteAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
     list_display = ("razon_social", "rut", "telefono", "correo_electronico", "forma_pago")
     search_fields = ("razon_social", "rut")
     list_filter = ("forma_pago",)
@@ -69,14 +90,14 @@ class ClienteAdmin(admin.ModelAdmin):
     ordering = ("razon_social",)
 
 
-class ObraAdmin(admin.ModelAdmin):
+class ObraAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
     list_display = ("nombre", "contacto_nombre", "contacto_telefono", "contacto_email", "direccion")
     search_fields = ("nombre", "contacto_email")
     inlines = (ArriendoInlineForObra,)
     ordering = ("nombre",)
 
 
-class ArriendoAdmin(admin.ModelAdmin):
+class ArriendoAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
     list_display = ("id", "maquinaria", "cliente", "obra", "fecha_inicio", "fecha_termino", "periodo", "tarifa", "estado")
     list_filter = ("estado", "periodo", "obra")
     search_fields = ("maquinaria__serie", "cliente__razon_social", "obra__nombre")
@@ -86,7 +107,7 @@ class ArriendoAdmin(admin.ModelAdmin):
     ordering = ("-fecha_inicio", "-id")
 
 
-class DocumentoAdmin(admin.ModelAdmin):
+class DocumentoAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
     list_display = ("tipo", "numero", "cliente", "fecha_emision", "monto_total", "relacionado_con", "es_retiro")
     list_filter = ("tipo", "fecha_emision", "es_retiro")
     search_fields = ("numero", "cliente__razon_social")
@@ -94,8 +115,14 @@ class DocumentoAdmin(admin.ModelAdmin):
     date_hierarchy = "fecha_emision"
     ordering = ("-fecha_emision", "-id")
 
+    def has_add_permission(self, request):
+        return False
 
-class OrdenTrabajoAdmin(admin.ModelAdmin):
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class OrdenTrabajoAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
     list_display = ("id", "tipo", "estado", "cliente", "maquinaria", "es_facturable", "factura", "guia", "fecha_creacion")
     list_filter = ("tipo", "estado", "es_facturable")
     search_fields = ("cliente__razon_social", "maquinaria__serie")
