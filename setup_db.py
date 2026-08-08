@@ -14,7 +14,9 @@ load_dotenv()  # lee variables de .env si existe
 DB_NAME   = os.getenv("DB_NAME",   "MaquinasClientes")
 DB_HOST   = os.getenv("DB_HOST",   r"localhost\SQLEXPRESS")   # ej: "localhost\\SQLEXPRESS"
 DB_USER   = os.getenv("DB_USER",   "sa")
-DB_PASS   = os.getenv("DB_PASSWORD", "Franz2024!")            # cambia la clave si corresponde
+DB_PASS   = os.getenv('DB_PASSWORD')
+if not DB_PASS:
+    raise RuntimeError('Missing required environment variable: DB_PASSWORD')
 DB_DRIVER = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")  # o "ODBC Driver 18 for SQL Server"
 
 # Si usas Driver 18 y no tienes CA, agrega ;TrustServerCertificate=yes
@@ -40,7 +42,7 @@ def connect_to(server_db="master"):
             print("✅ Conectado")
             return conn
         except Exception as e:
-            print(f"⚠️  No se pudo conectar con {drv}: {e}")
+            print(f"⚠️  No se pudo conectar con {drv}.")
             last_err = e
     raise last_err
 

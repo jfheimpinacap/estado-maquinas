@@ -32,6 +32,8 @@ __pycache__/
 *.sqlite3
 .env
 .env.*
+!.env.example
+!**/.env.example
 
 # Virtual envs
 venv/
