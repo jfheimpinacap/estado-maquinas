@@ -755,22 +755,53 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         data = request.data or {}
 
         tipo_doc = (data.get("tipo_documento") or "").upper().strip()
+        accion_raw = str(data.get("accion") or "").lower().strip()
         facturable_flag = data.get("facturable", None)
+        has_facturable = "facturable" in data
+
+        acciones_factura = ("facturar", "emitir_factura", "factura")
+        acciones_gd_facturable = (
+            "guia_facturable",
+            "emitir_guia_facturable",
+            "gd_facturable",
+        )
+        acciones_gd_no_facturable = (
+            "guia_no_facturable",
+            "emitir_guia_no_facturable",
+            "gd_no_facturable",
+            "gd_retiro",
+            "retiro",
+        )
+
+        if has_facturable and not isinstance(facturable_flag, bool):
+            return Response(
+                {"detail": "facturable debe ser un booleano JSON."}, status=400
+            )
+
+        facturable_por_accion = None
+        if accion_raw in acciones_gd_facturable:
+            facturable_por_accion = True
+        elif accion_raw in acciones_gd_no_facturable:
+            facturable_por_accion = False
+
+        if (
+            facturable_por_accion is not None
+            and has_facturable
+            and facturable_flag is not facturable_por_accion
+        ):
+            return Response(
+                {"detail": "accion y facturable contienen instrucciones contradictorias."},
+                status=400,
+            )
+
+        if facturable_por_accion is not None:
+            facturable_flag = facturable_por_accion
 
         if not tipo_doc:
-            accion_raw = str(data.get("accion") or "").lower().strip()
-            if accion_raw in ("facturar", "emitir_factura", "factura"):
+            if accion_raw in acciones_factura:
                 tipo_doc = "FACT"
-            elif accion_raw in (
-                "guia_no_facturable",
-                "emitir_guia_no_facturable",
-                "gd_no_facturable",
-                "gd_retiro",
-                "retiro",
-            ):
+            elif facturable_por_accion is not None:
                 tipo_doc = "GD"
-                if facturable_flag is None:
-                    facturable_flag = False
 
         if tipo_doc not in ("FACT", "GD"):
             return Response(
@@ -866,7 +897,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
 
         numero = _next_doc_number("GD")
 
-        es_gd_facturable = bool(facturable_flag)
+        es_gd_facturable = facturable_flag is True
         es_retiro = (ot.tipo == "RETI")  # ✅ retiro solo cuando es RETI
 
         if es_gd_facturable:
