@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -26,9 +27,23 @@ from .serializers import (
     DocumentoDetalleSerializer, OrdenTrabajoSerializer,
     UserSerializer
 )
-from .permissions import CanEmitDocuments, IsStaffOrSuperUser, IsSuperUserOnly
+from .permissions import (
+    CanEmitDocuments,
+    IsAuthenticatedReadStaffWrite,
+    IsStaffOrSuperUser,
+    IsSuperUserOnly,
+)
 
 MAX_FAILED = 5
+
+
+class CriticalEntityViewSet(viewsets.ModelViewSet):
+    """Base de contención: lectura autenticada, escritura interna y sin borrado."""
+
+    permission_classes = [IsAuthenticatedReadStaffWrite]
+
+    def destroy(self, request, *args, **kwargs):
+        raise MethodNotAllowed(request.method)
 
 # Cliente “empresa” (usado en Bodega y OT RETI)
 CLIENTE_EMPRESA = {
@@ -190,10 +205,9 @@ def _ensure_arriendo_for_ot(ot: OrdenTrabajo):
 # =======================
 #   Maquinarias
 # =======================
-class MaquinariaViewSet(viewsets.ModelViewSet):
+class MaquinariaViewSet(CriticalEntityViewSet):
     queryset = Maquinaria.objects.all()
     serializer_class = MaquinariaSerializer
-    permission_classes = [IsAuthenticated]
 
     def list(self, request, *args, **kwargs):
         q = (request.GET.get("query") or "").strip()
@@ -260,10 +274,9 @@ class MaquinariaViewSet(viewsets.ModelViewSet):
 # =======================
 #   Clientes
 # =======================
-class ClienteViewSet(viewsets.ModelViewSet):
+class ClienteViewSet(CriticalEntityViewSet):
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
-    permission_classes = [IsAuthenticated]
 
     def list(self, request, *args, **kwargs):
         q = (request.GET.get("query") or "").strip()
@@ -289,19 +302,17 @@ class ClienteViewSet(viewsets.ModelViewSet):
 # =======================
 #   Obras
 # =======================
-class ObraViewSet(viewsets.ModelViewSet):
+class ObraViewSet(CriticalEntityViewSet):
     queryset = Obra.objects.all()
     serializer_class = ObraSerializer
-    permission_classes = [IsAuthenticated]
 
 
 # =======================
 #   Arriendos
 # =======================
-class ArriendoViewSet(viewsets.ModelViewSet):
+class ArriendoViewSet(CriticalEntityViewSet):
     queryset = Arriendo.objects.all()
     serializer_class = ArriendoSerializer
-    permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
         maq_id = request.data.get("maquinaria")
@@ -1220,4 +1231,3 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.order_by("id")
     serializer_class = UserSerializer
     permission_classes = [IsSuperUserOnly]
-
