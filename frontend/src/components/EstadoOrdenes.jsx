@@ -334,6 +334,9 @@ export default function EstadoOrdenes({ setView }) {
         body: JSON.stringify({
           accion, // p.ej.: "guia_no_facturable", "guia_facturable", "facturar"
           tipo_documento: tipoDocumento, // "GD" o "FACT"
+          ...(tipoDocumento === "GD" && {
+            facturable: accion === "guia_facturable",
+          }),
         }),
       });
 
