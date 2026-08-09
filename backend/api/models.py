@@ -106,6 +106,28 @@ class Arriendo(models.Model):
         return f"Arriendo #{self.id}"
 
 
+class ArriendoItem(models.Model):
+    arriendo = models.ForeignKey(
+        "Arriendo",
+        on_delete=models.PROTECT,
+        related_name="items",
+    )
+    maquinaria = models.ForeignKey(
+        "Maquinaria",
+        on_delete=models.PROTECT,
+        related_name="arriendo_items",
+    )
+
+    class Meta:
+        db_table = "ArriendoItem"
+        indexes = [
+            models.Index(
+                fields=["arriendo", "maquinaria"],
+                name="arri_item_arr_maq_idx",
+            ),
+        ]
+
+
 # --------------------------------------------
 # Seguridad de login: intentos fallidos/bloqueo
 # --------------------------------------------
