@@ -1,4 +1,5 @@
 # backend/api/views.py
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Q, Case, When, IntegerField, F, Value, Exists, OuterRef
 from django.db.models.functions import Replace
@@ -32,6 +33,10 @@ from .permissions import (
     IsAuthenticatedReadStaffWrite,
     IsStaffOrSuperUser,
     IsSuperUserOnly,
+)
+from .services.rental_writes import (
+    create_singular_rental_with_item_and_order,
+    validate_singular_machine_selection,
 )
 
 MAX_FAILED = 5
@@ -495,11 +500,39 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         tipo_raw = (data.get("tipo") or "ALTA").upper()
         tipo = "RETI" if tipo_raw == "RETIRO" else tipo_raw
 
+        compatible_write_requested = data.get("crear_arriendo_item", False)
+        if type(compatible_write_requested) is not bool:
+            return Response(
+                {"crear_arriendo_item": ["Debe ser un booleano JSON."]}, status=400
+            )
+        if compatible_write_requested:
+            if not settings.ENABLE_SINGULAR_ARRIENDO_ITEM_WRITE:
+                return Response(
+                    {"detail": "La escritura compatible singular no está habilitada."},
+                    status=400,
+                )
+            if tipo != "ALTA":
+                return Response(
+                    {"detail": "La escritura compatible singular solo admite OT ALTA."},
+                    status=400,
+                )
+            if data.get("arriendo_id") or data.get("arriendo"):
+                return Response(
+                    {"detail": "La escritura compatible singular requiere un arriendo nuevo."},
+                    status=400,
+                )
+
         lineas = data.get("lineas") or []
         if not isinstance(lineas, list) or len(lineas) == 0:
             return Response(
                 {"detail": "Debes indicar al menos una máquina en 'lineas'."},
                 status=400,
+            )
+
+        selected_machine = None
+        if compatible_write_requested:
+            selected_machine = validate_singular_machine_selection(
+                data.get("maquinaria_ids"), lineas
             )
 
         meta_cliente = data.get("meta_cliente") or ""
@@ -668,14 +701,51 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             if periodo not in ("Dia", "Semana", "Mes"):
                 periodo = "Dia"
 
-            obra_obj = _resolve_or_create_obra(meta_obra, meta_direccion) if meta_obra else None
-
             # tarifa: usa el "valor" del equipo (sin flete)
             try:
                 tarifa = Decimal(str(lineas[0].get("valor") or "0") or "0")
             except Exception:
                 tarifa = Decimal("0")
 
+            if compatible_write_requested:
+                with transaction.atomic():
+                    obra_obj = (
+                        _resolve_or_create_obra(meta_obra, meta_direccion)
+                        if meta_obra
+                        else None
+                    )
+                    arr, ot = create_singular_rental_with_item_and_order(
+                        machine=selected_machine,
+                        rental_data={
+                            "cliente": cli,
+                            "obra": obra_obj,
+                            "fecha_inicio": desde,
+                            "fecha_termino": hasta,
+                            "periodo": periodo,
+                            "tarifa": tarifa,
+                            "estado": "Activo",
+                        },
+                        order_data={
+                            "estado": "PEND",
+                            "tipo_comercial": tipo_comercial,
+                            "cliente": cli,
+                            "direccion": meta_direccion,
+                            "obra_nombre": meta_obra,
+                            "contactos": meta_contactos,
+                            "detalle_lineas": detalle_lineas,
+                            "monto_neto": total_neto,
+                            "monto_iva": total_iva,
+                            "monto_total": total_total,
+                            "observaciones": observaciones,
+                            "es_facturable": es_facturable,
+                            **extra_kwargs,
+                        },
+                    )
+                ser = self.get_serializer(ot)
+                data_resp = self._enrich_ot_rows([ot], [ser.data])[0]
+                return Response(data_resp, status=201)
+
+            obra_obj = _resolve_or_create_obra(meta_obra, meta_direccion) if meta_obra else None
             arr = Arriendo.objects.create(
                 maquinaria=maquinaria_principal,
                 cliente=cli,

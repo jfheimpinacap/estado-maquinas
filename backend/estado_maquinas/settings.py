@@ -164,3 +164,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Shadow write for Prompt 022. It is intentionally disabled until a later phase
+# explicitly enables it; tests may opt in with override_settings.
+ENABLE_SINGULAR_ARRIENDO_ITEM_WRITE = False
