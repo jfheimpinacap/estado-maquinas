@@ -122,6 +122,25 @@ class MultiMachineCaseClassificationTests(TestCase):
             change(value)
             self.assert_rejected(value)
 
+    def test_schema_version_requires_exact_json_integer_one(self):
+        valid = report()
+        raw, data = self.run_mocked(json.dumps(valid))
+        self.assertTrue(raw)
+        self.assertIs(type(data["schema_version"]), int)
+        self.assertEqual(data["schema_version"], 1)
+
+        missing = object()
+        for version in (True, False, 1.0, "1", None, [], {}, 2, missing):
+            invalid = report()
+            if version is missing:
+                invalid.pop("schema_version")
+                label = "missing"
+            else:
+                invalid["schema_version"] = version
+                label = repr(version)
+            with self.subTest(schema_version=label):
+                self.assert_rejected(json.dumps(invalid))
+
     def test_rejects_summary_counts_and_boolean_integers(self):
         for key, value in (("arriendos_total", True),
                            ("manual_review_findings", 1),

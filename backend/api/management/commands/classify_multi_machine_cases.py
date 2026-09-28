@@ -7,6 +7,7 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 
+SCHEMA_VERSION = 1
 TOP_KEYS = {
     "schema_version", "read_only", "summary", "deterministic_pairs",
     "manual_review", "active_duplicate_machine_groups", "protected_document_links",
@@ -76,7 +77,9 @@ def _finding_key(item):
 def validate(report):
     if not isinstance(report, dict) or set(report) != TOP_KEYS:
         _fail()
-    if report["schema_version"] != 1 or report["read_only"] is not True:
+    if (type(report["schema_version"]) is not int
+            or report["schema_version"] != SCHEMA_VERSION
+            or report["read_only"] is not True):
         _fail()
     summary = report["summary"]
     if (not isinstance(summary, dict) or set(summary) != SUMMARY_KEYS
@@ -252,7 +255,7 @@ def classify(report):
         "preflight_sha256": hashlib.sha256(json.dumps(report, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
         "read_only": True,
         "review_category_counts": counts,
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "summary": {
             "active_duplicate_machine_groups": len(report["active_duplicate_machine_groups"]),
             "arriendo_cases": len(rental_cases),

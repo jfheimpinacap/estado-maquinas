@@ -29,6 +29,10 @@ def _positive_int(value):
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
+def _supported_schema_version(value):
+    return type(value) is int and value == SCHEMA_VERSION
+
+
 class Command(BaseCommand):
     help = "Planifica, aplica o revierte el backfill controlado de ArriendoItem."
 
@@ -107,7 +111,7 @@ class Command(BaseCommand):
     def _validate_preflight(report):
         if not isinstance(report, dict):
             raise CommandError("El reporte preflight debe ser un objeto JSON.")
-        if report.get("schema_version") != SCHEMA_VERSION:
+        if not _supported_schema_version(report.get("schema_version")):
             raise CommandError("Versión de reporte preflight incompatible.")
         if report.get("read_only") is not True:
             raise CommandError("El reporte preflight no es de solo lectura.")
@@ -336,7 +340,8 @@ class Command(BaseCommand):
     def _validate_manifest(manifest):
         if set(manifest) != MANIFEST_KEYS:
             raise CommandError("Contrato de manifiesto inválido.")
-        if manifest["schema_version"] != SCHEMA_VERSION or manifest["command"] != COMMAND:
+        if (not _supported_schema_version(manifest["schema_version"])
+                or manifest["command"] != COMMAND):
             raise CommandError("Identidad de manifiesto inválida.")
         try:
             parsed_uuid = uuid.UUID(manifest["run_id"])

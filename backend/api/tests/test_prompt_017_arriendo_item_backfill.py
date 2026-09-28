@@ -1,3 +1,4 @@
+import copy
 import json
 import tempfile
 import uuid
@@ -184,6 +185,36 @@ class ArriendoItemBackfillTests(TestCase):
             self.apply(valid, self.root / "divergent.json")
         self.assertFalse(ArriendoItem.objects.exists())
 
+    def test_apply_requires_exact_integer_schema_version_before_writes(self):
+        self.rental(self.machine("A"))
+        valid_path, valid_report = self.approved_report("valid-version.json")
+        self.assertIs(type(valid_report["schema_version"]), int)
+        self.assertEqual(valid_report["schema_version"], 1)
+
+        missing = object()
+        for index, version in enumerate((True, False, 1.0, "1", None, [], {}, 2, missing)):
+            invalid_report = copy.deepcopy(valid_report)
+            if version is missing:
+                invalid_report.pop("schema_version")
+                label = "missing"
+            else:
+                invalid_report["schema_version"] = version
+                label = repr(version)
+            report_path = self.root / f"invalid-report-{index}.json"
+            manifest_path = self.root / f"invalid-manifest-{index}.json"
+            report_path.write_text(json.dumps(invalid_report), encoding="utf-8")
+
+            with self.subTest(schema_version=label), self.assertRaisesRegex(
+                    CommandError, "Versión de reporte preflight incompatible"):
+                self.apply(report_path, manifest_path)
+            self.assertFalse(ArriendoItem.objects.exists())
+            self.assertFalse(manifest_path.exists())
+
+        valid_manifest = self.root / "valid-version-manifest.json"
+        _, result = self.apply(valid_path, valid_manifest)
+        self.assertEqual(len(result["created_items"]), 1)
+        self.assertTrue(valid_manifest.is_file())
+
     def test_apply_manifest_contract_and_domain_preservation(self):
         machine = self.machine("A")
         rental = self.rental(machine)
@@ -208,6 +239,8 @@ class ArriendoItemBackfillTests(TestCase):
         manifest_raw = manifest_path.read_text(encoding="utf-8")
         manifest = json.loads(manifest_raw)
 
+        self.assertIs(type(manifest["schema_version"]), int)
+        self.assertEqual(manifest["schema_version"], 1)
         self.assertEqual(result["created_items"], manifest["created_items"])
         self.assertEqual(set(manifest), {
             "schema_version", "command", "run_id", "preflight_sha256", "created_items"
@@ -341,6 +374,39 @@ class ArriendoItemBackfillTests(TestCase):
         with self.assertRaises(CommandError):
             self.rollback(manifest_path, applied["run_id"])
         self.assertEqual(ArriendoItem.objects.count(), 2)
+
+    def test_rollback_requires_exact_integer_schema_version_before_deletes(self):
+        self.rental(self.machine("A"))
+        approved, _ = self.approved_report()
+        manifest_path = self.root / "valid-manifest.json"
+        _, applied = self.apply(approved, manifest_path)
+        valid_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertIs(type(valid_manifest["schema_version"]), int)
+        self.assertEqual(valid_manifest["schema_version"], 1)
+        item_ids = list(ArriendoItem.objects.values_list("id", flat=True))
+
+        missing = object()
+        for index, version in enumerate((True, False, 1.0, "1", None, [], {}, 2, missing)):
+            invalid_manifest = copy.deepcopy(valid_manifest)
+            if version is missing:
+                invalid_manifest.pop("schema_version")
+                label = "missing"
+            else:
+                invalid_manifest["schema_version"] = version
+                label = repr(version)
+            invalid_path = self.root / f"invalid-manifest-{index}.json"
+            invalid_path.write_text(json.dumps(invalid_manifest), encoding="utf-8")
+
+            with self.subTest(schema_version=label), self.assertRaises(CommandError):
+                self.rollback(invalid_path, applied["run_id"])
+            self.assertEqual(
+                list(ArriendoItem.objects.values_list("id", flat=True)), item_ids
+            )
+            self.assertTrue(invalid_path.is_file())
+
+        _, result = self.rollback(manifest_path, applied["run_id"])
+        self.assertEqual(result["deleted_items"], applied["created_items"])
+        self.assertFalse(ArriendoItem.objects.exists())
 
     def test_rollback_tolerates_an_already_absent_row(self):
         self.rental(self.machine("A"))
