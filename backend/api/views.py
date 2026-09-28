@@ -1,7 +1,7 @@
 # backend/api/views.py
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Case, When, IntegerField, F, Value, Exists, OuterRef
+from django.db.models import Q, Case, When, IntegerField, F, Value, Exists, OuterRef, Prefetch
 from django.db.models.functions import Replace
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -19,7 +19,7 @@ import re
 from datetime import date as _date, datetime as _dt
 
 from .models import (
-    Maquinaria, Cliente, Obra, Arriendo,
+    Maquinaria, Cliente, Obra, Arriendo, ArriendoItem,
     Documento, OrdenTrabajo, UserSecurity, DOC_TIPO
 )
 from .serializers import (
@@ -324,6 +324,17 @@ class ObraViewSet(CriticalEntityViewSet):
 class ArriendoViewSet(CriticalEntityViewSet):
     queryset = Arriendo.objects.all()
     serializer_class = ArriendoSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if (
+            self.request.method == "GET"
+            and settings.ENABLE_ARRIENDO_ITEM_SHADOW_READ
+        ):
+            return queryset.prefetch_related(
+                Prefetch("items", queryset=ArriendoItem.objects.order_by("pk"))
+            )
+        return queryset
 
     def create(self, request, *args, **kwargs):
         raw_requested = request.data.get("crear_arriendo_item", False)
