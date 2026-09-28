@@ -168,3 +168,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Shadow write for Prompt 022. It is intentionally disabled until a later phase
 # explicitly enables it; tests may opt in with override_settings.
 ENABLE_SINGULAR_ARRIENDO_ITEM_WRITE = False
+
+# Additive, read-only visibility for persisted ArriendoItem relations. This is
+# deliberately independent from the compatible write flag and disabled by default.
+ENABLE_ARRIENDO_ITEM_SHADOW_READ = False

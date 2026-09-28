@@ -171,3 +171,25 @@ Estas decisiones bloquean o condicionan la primera escritura compatible. Disponi
 * Los documentos actuales permiten tipos y relaciones internas, pero eso no demuestra emisión DTE real ni autoriza inferir cobertura por máquina.
 
 Ante una contradicción entre dato legacy y evidencia relacional determinista, la migración debe reportar y detener la automatización de ese caso; no corregir silenciosamente el historial.
+
+## 8. Lectura aditiva en sombra de arriendos
+
+`GET /arriendos` y `GET /arriendos/{id}` pueden exponer, bajo el flag independiente
+`ENABLE_ARRIENDO_ITEM_SHADOW_READ` (apagado por defecto), dos campos exclusivamente de
+lectura: `items_sombra`, con las PK de ítem y maquinaria persistidas en orden de PK de
+ítem, y `diagnostico_items_sombra`. Con el flag apagado ambos campos se omiten y el
+contrato anterior permanece intacto; el flag tampoco modifica respuestas de escritura.
+
+El diagnóstico informa cantidades, nulidad de la FK legacy, si su maquinaria figura
+entre los ítems y uno de estos estados: `sin_items_fk_legacy_presente`,
+`sin_items_fk_legacy_nula`, `item_unico_coincidente`, `item_unico_discrepante`,
+`varias_maquinarias_distintas` o `items_repetidos`. Los duplicados se conservan en la
+lista y las cantidades permiten reconocer si además hay varias maquinarias distintas.
+`cobertura_completa_demostrada` es siempre `false`: incluso una coincidencia singular
+solo compara las dos relaciones almacenadas, y que la FK legacy aparezca en una lista
+plural no acredita que esta represente todo el historial.
+
+Esta lectura no fabrica ítems desde la FK, las series ni `detalle_lineas`, no escribe
+datos y no alimenta disponibilidad, ubicación, documentos, estado, historial o retiro.
+`ArriendoItem` continúa siendo información en sombra, no una fuente operativa
+autoritativa.

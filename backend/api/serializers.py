@@ -4,6 +4,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.db import IntegrityError
 from .models import Cliente, Maquinaria, Obra, Arriendo, Documento, OrdenTrabajo, DOC_TIPO
 from django.contrib.auth.models import User
+from django.conf import settings
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -188,10 +189,60 @@ class ArriendoSerializer(serializers.ModelSerializer):
     obra = serializers.PrimaryKeyRelatedField(queryset=Obra.objects.all(), allow_null=True, required=False)
     crear_arriendo_item = serializers.JSONField(write_only=True, required=False)
     maquinaria_ids = serializers.JSONField(write_only=True, required=False)
+    items_sombra = serializers.SerializerMethodField()
+    diagnostico_items_sombra = serializers.SerializerMethodField()
 
     class Meta:
         model = Arriendo
-        fields = ['id','maquinaria','cliente','obra','fecha_inicio','fecha_termino','periodo','tarifa','estado','crear_arriendo_item','maquinaria_ids']
+        fields = ['id','maquinaria','cliente','obra','fecha_inicio','fecha_termino','periodo','tarifa','estado','crear_arriendo_item','maquinaria_ids','items_sombra','diagnostico_items_sombra']
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+        shadow_read = (
+            request is not None
+            and request.method == 'GET'
+            and settings.ENABLE_ARRIENDO_ITEM_SHADOW_READ
+        )
+        if not shadow_read:
+            fields.pop('items_sombra', None)
+            fields.pop('diagnostico_items_sombra', None)
+        return fields
+
+    @staticmethod
+    def _shadow_items(obj):
+        # The view prefetches this ordered relation whenever shadow reads are on.
+        return list(obj.items.all())
+
+    def get_items_sombra(self, obj):
+        return [
+            {'id': item.pk, 'maquinaria_id': item.maquinaria_id}
+            for item in self._shadow_items(obj)
+        ]
+
+    def get_diagnostico_items_sombra(self, obj):
+        items = self._shadow_items(obj)
+        machine_ids = [item.maquinaria_id for item in items]
+        distinct_machine_ids = set(machine_ids)
+        legacy_id = obj.maquinaria_id
+
+        if not items:
+            status = 'sin_items_fk_legacy_presente' if legacy_id else 'sin_items_fk_legacy_nula'
+        elif len(items) == 1:
+            status = 'item_unico_coincidente' if legacy_id == machine_ids[0] else 'item_unico_discrepante'
+        elif len(distinct_machine_ids) < len(items):
+            status = 'items_repetidos'
+        else:
+            status = 'varias_maquinarias_distintas'
+
+        return {
+            'estado': status,
+            'cantidad_items': len(items),
+            'cantidad_maquinarias_distintas': len(distinct_machine_ids),
+            'fk_legacy_nula': legacy_id is None,
+            'maquinaria_legacy_en_items': legacy_id in distinct_machine_ids if legacy_id is not None else False,
+            'cobertura_completa_demostrada': False,
+        }
 
     def validate(self, attrs):
         requested = attrs.get('crear_arriendo_item', False)
