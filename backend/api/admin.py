@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin, GroupAdmin
@@ -98,6 +99,37 @@ class ObraAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
 
 
 class ArriendoAdmin(NoCriticalDeletionAdminMixin, admin.ModelAdmin):
+    class ArriendoChangeForm(forms.ModelForm):
+        class Meta:
+            model = Arriendo
+            fields = "__all__"
+
+        def clean_maquinaria(self):
+            maquinaria = self.cleaned_data.get("maquinaria")
+            if not self.instance.pk:
+                return maquinaria
+
+            item_machine_ids = list(
+                self.instance.items.values_list("maquinaria_id", flat=True)
+            )
+            if not item_machine_ids:
+                return maquinaria
+
+            current_id = self.instance.maquinaria_id
+            requested_id = maquinaria.pk if maquinaria else None
+            if len(item_machine_ids) != 1 or item_machine_ids[0] != current_id:
+                raise forms.ValidationError(
+                    "Los ítems existentes no coinciden de forma singular con la FK "
+                    "legacy; no se modificó la cabecera."
+                )
+            if requested_id != current_id:
+                raise forms.ValidationError(
+                    "No se puede cambiar ni borrar la maquinaria de un arriendo que "
+                    "ya tiene ítems."
+                )
+            return maquinaria
+
+    form = ArriendoChangeForm
     list_display = ("id", "maquinaria", "cliente", "obra", "fecha_inicio", "fecha_termino", "periodo", "tarifa", "estado")
     list_filter = ("estado", "periodo", "obra")
     search_fields = ("maquinaria__serie", "cliente__razon_social", "obra__nombre")
