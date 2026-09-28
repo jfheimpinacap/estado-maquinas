@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from api.models import Arriendo, ArriendoItem, Maquinaria, OrdenTrabajo
 
 
-def validate_singular_machine_selection(machine_ids, lineas):
+def validate_singular_machine_selection(machine_ids, lineas=None):
     """Validate the explicit, singular PK contract used by the shadow write path."""
     if not isinstance(machine_ids, list) or not machine_ids:
         raise ValidationError(
@@ -30,6 +30,8 @@ def validate_singular_machine_selection(machine_ids, lineas):
             {"maquinaria_ids": ["La maquinaria indicada no existe."]}
         )
 
+    if lineas is None:
+        return machine
     if not isinstance(lineas, list) or len(lineas) != 1:
         raise ValidationError(
             {"lineas": ["La selección singular requiere exactamente una línea."]}
@@ -55,10 +57,20 @@ def validate_singular_machine_selection(machine_ids, lineas):
 
 
 @transaction.atomic
-def create_singular_rental_with_item_and_order(*, machine, rental_data, order_data):
-    """Atomically create the compatible singular rental projection and its ALTA OT."""
+def create_singular_rental_with_item(*, machine, rental_data):
+    """Create the legacy header and its singular shadow item atomically."""
     rental = Arriendo.objects.create(maquinaria=machine, **rental_data)
     ArriendoItem.objects.create(arriendo=rental, maquinaria=machine)
+    return rental
+
+
+@transaction.atomic
+def create_singular_rental_with_item_and_order(*, machine, rental_data, order_data):
+    """Atomically create the compatible singular rental projection and its ALTA OT."""
+    rental = create_singular_rental_with_item(
+        machine=machine,
+        rental_data=rental_data,
+    )
     order = OrdenTrabajo.objects.create(
         arriendo=rental,
         maquinaria=machine,
