@@ -186,10 +186,47 @@ class ArriendoSerializer(serializers.ModelSerializer):
     maquinaria = serializers.PrimaryKeyRelatedField(queryset=Maquinaria.objects.all(), allow_null=True, required=False)
     cliente = serializers.PrimaryKeyRelatedField(queryset=Cliente.objects.all(), allow_null=True, required=False)
     obra = serializers.PrimaryKeyRelatedField(queryset=Obra.objects.all(), allow_null=True, required=False)
+    crear_arriendo_item = serializers.JSONField(write_only=True, required=False)
+    maquinaria_ids = serializers.JSONField(write_only=True, required=False)
 
     class Meta:
         model = Arriendo
-        fields = ['id','maquinaria','cliente','obra','fecha_inicio','fecha_termino','periodo','tarifa','estado']
+        fields = ['id','maquinaria','cliente','obra','fecha_inicio','fecha_termino','periodo','tarifa','estado','crear_arriendo_item','maquinaria_ids']
+
+    def validate(self, attrs):
+        requested = attrs.get('crear_arriendo_item', False)
+        if type(requested) is not bool:
+            raise serializers.ValidationError(
+                {'crear_arriendo_item': ['Debe ser un booleano JSON.']}
+            )
+        if 'maquinaria_ids' in attrs and not requested:
+            raise serializers.ValidationError(
+                {'maquinaria_ids': ['Solo se admite con crear_arriendo_item=true.']}
+            )
+        if self.instance is not None and (
+            'crear_arriendo_item' in attrs or 'maquinaria_ids' in attrs
+        ):
+            raise serializers.ValidationError(
+                {'crear_arriendo_item': ['Este opt-in solo se admite al crear un arriendo.']}
+            )
+
+        if self.instance is not None and 'maquinaria' in attrs:
+            item_machine_ids = list(
+                self.instance.items.values_list('maquinaria_id', flat=True)
+            )
+            if item_machine_ids:
+                current_id = self.instance.maquinaria_id
+                requested_machine = attrs['maquinaria']
+                requested_id = requested_machine.pk if requested_machine else None
+                if len(item_machine_ids) != 1 or item_machine_ids[0] != current_id:
+                    raise serializers.ValidationError(
+                        {'maquinaria': ['Los ítems existentes no coinciden de forma singular con la FK legacy; no se modificó la cabecera.']}
+                    )
+                if requested_id != current_id:
+                    raise serializers.ValidationError(
+                        {'maquinaria': ['No se puede cambiar ni borrar la maquinaria de un arriendo que ya tiene ítems.']}
+                    )
+        return attrs
 
 
 class DocumentoSerializer(serializers.ModelSerializer):
@@ -331,6 +368,3 @@ class OrdenTrabajoSerializer(serializers.ModelSerializer):
                 return f"{m.marca} {m.modelo} ({m.serie})"
             return f"{m.marca} {m.modelo}"
         return None
-
-
-

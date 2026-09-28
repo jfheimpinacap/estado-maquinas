@@ -35,6 +35,7 @@ from .permissions import (
     IsSuperUserOnly,
 )
 from .services.rental_writes import (
+    create_singular_rental_with_item,
     create_singular_rental_with_item_and_order,
     validate_singular_machine_selection,
 )
@@ -325,14 +326,42 @@ class ArriendoViewSet(CriticalEntityViewSet):
     serializer_class = ArriendoSerializer
 
     def create(self, request, *args, **kwargs):
-        maq_id = request.data.get("maquinaria")
-        try:
-            Maquinaria.objects.get(pk=maq_id)
-        except Maquinaria.DoesNotExist:
-            return Response({"error": "Maquinaria no encontrada"}, status=404)
+        raw_requested = request.data.get("crear_arriendo_item", False)
+        if raw_requested is False:
+            try:
+                Maquinaria.objects.get(pk=request.data.get("maquinaria"))
+            except Maquinaria.DoesNotExist:
+                return Response({"error": "Maquinaria no encontrada"}, status=404)
 
-        resp = super().create(request, *args, **kwargs)
-        return resp
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        requested = serializer.validated_data.pop("crear_arriendo_item", False)
+        machine_ids = serializer.validated_data.pop("maquinaria_ids", None)
+
+        if requested:
+            if not settings.ENABLE_SINGULAR_ARRIENDO_ITEM_WRITE:
+                return Response(
+                    {"detail": "La escritura compatible singular no está habilitada."},
+                    status=400,
+                )
+            machine = validate_singular_machine_selection(machine_ids)
+            legacy_machine = serializer.validated_data.pop("maquinaria", None)
+            if legacy_machine is None or legacy_machine.pk != machine.pk:
+                return Response(
+                    {"maquinaria": ["Debe coincidir con la PK singular seleccionada."]},
+                    status=400,
+                )
+            rental = create_singular_rental_with_item(
+                machine=machine,
+                rental_data=serializer.validated_data,
+            )
+            output = self.get_serializer(rental)
+            headers = self.get_success_headers(output.data)
+            return Response(output.data, status=status.HTTP_201_CREATED, headers=headers)
+
+        serializer.save()
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 # =======================
