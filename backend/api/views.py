@@ -246,6 +246,40 @@ class MaquinariaViewSet(CriticalEntityViewSet):
     @action(
         detail=True,
         methods=["get"],
+        url_path="participaciones-sombra",
+        permission_classes=[IsStaffOrSuperUser],
+    )
+    def participaciones_sombra(self, request, pk=None):
+        if not settings.ENABLE_ARRIENDO_ITEM_SHADOW_READ:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        maquinaria = self.get_object()
+        items = (
+            ArriendoItem.objects.filter(maquinaria_id=maquinaria.pk)
+            .order_by("pk")
+            .values("pk", "arriendo_id", "maquinaria_id", "arriendo__maquinaria_id")
+        )
+        return Response({
+            "maquinaria_id": maquinaria.pk,
+            "fuente": "ArriendoItem",
+            "cobertura_completa_demostrada": False,
+            "participaciones_sombra": [
+                {
+                    "arriendo_item_id": item["pk"],
+                    "arriendo_id": item["arriendo_id"],
+                    "maquinaria_id": item["maquinaria_id"],
+                    "maquinaria_legacy_id": item["arriendo__maquinaria_id"],
+                    "coincide_con_fk_legacy": (
+                        item["arriendo__maquinaria_id"] == item["maquinaria_id"]
+                    ),
+                }
+                for item in items
+            ],
+        })
+
+    @action(
+        detail=True,
+        methods=["get"],
         permission_classes=[IsStaffOrSuperUser],
     )
     def historial(self, request, pk=None):
