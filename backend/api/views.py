@@ -37,6 +37,7 @@ from .permissions import (
 from .services.rental_writes import (
     create_singular_rental_with_item,
     create_singular_rental_with_item_and_order,
+    validate_order_line_series,
     validate_singular_machine_selection,
 )
 
@@ -579,6 +580,11 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             return Response(
                 {"crear_arriendo_item": ["Debe ser un booleano JSON."]}, status=400
             )
+        if "maquinaria_ids" in data and not compatible_write_requested:
+            return Response(
+                {"maquinaria_ids": ["Solo se admite con crear_arriendo_item=true."]},
+                status=400,
+            )
         if compatible_write_requested:
             if not settings.ENABLE_SINGULAR_ARRIENDO_ITEM_WRITE:
                 return Response(
@@ -604,6 +610,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
             )
 
         selected_machine = None
+        series_lineas = [validate_order_line_series(line) for line in lineas]
         if compatible_write_requested:
             selected_machine = validate_singular_machine_selection(
                 data.get("maquinaria_ids"), lineas
@@ -685,8 +692,7 @@ class OrdenTrabajoViewSet(viewsets.ModelViewSet):
         total_iva = Decimal("0")
         total_total = Decimal("0")
 
-        for l in lineas:
-            serie = (l.get("serie") or "").strip()
+        for l, serie in zip(lineas, series_lineas):
             if not serie:
                 continue
 

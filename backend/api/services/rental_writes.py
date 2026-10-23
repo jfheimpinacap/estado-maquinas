@@ -4,6 +4,16 @@ from rest_framework.exceptions import ValidationError
 from api.models import Arriendo, ArriendoItem, Maquinaria, OrdenTrabajo
 
 
+def validate_order_line_series(line):
+    """Validate input types before trimming a newly submitted OT line's series."""
+    if not isinstance(line, dict):
+        raise ValidationError({"lineas": ["Cada línea debe ser un objeto JSON."]})
+    series = line.get("serie")
+    if series is not None and not isinstance(series, str):
+        raise ValidationError({"lineas": ["La serie debe ser una cadena JSON o null."]})
+    return series.strip() if series is not None else ""
+
+
 def validate_singular_machine_selection(machine_ids, lineas=None):
     """Validate the explicit, singular PK contract used by the shadow write path."""
     if not isinstance(machine_ids, list) or not machine_ids:
@@ -36,10 +46,7 @@ def validate_singular_machine_selection(machine_ids, lineas=None):
         raise ValidationError(
             {"lineas": ["La selección singular requiere exactamente una línea."]}
         )
-    line = lineas[0]
-    if not isinstance(line, dict):
-        raise ValidationError({"lineas": ["La línea debe ser un objeto JSON."]})
-    line_series = (line.get("serie") or "").strip()
+    line_series = validate_order_line_series(lineas[0])
     machine_series = (machine.serie or "").strip()
     if (
         not line_series

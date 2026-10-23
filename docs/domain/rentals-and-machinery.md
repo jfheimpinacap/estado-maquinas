@@ -215,3 +215,19 @@ atribuye documentos de cabecera al ítem ni demuestra cobertura histórica compl
 entrega, retiro, disponibilidad, ubicación o vigencia operativa. Conserva los
 contratos de lista, detalle e historial legacy y las lecturas de arriendos del
 Prompt 025. `ArriendoItem` permanece en sombra, sin autoridad operativa.
+
+## 10. Validación de entrada al crear OT
+
+`POST /ordenes` exige `crear_arriendo_item=true` cuando aparece `maquinaria_ids`,
+incluso si vale null o una lista vacía, independientemente del tipo de OT o del
+flag de escritura. El opt-in solo acepta booleanos JSON y conserva su alcance:
+flag habilitado, ALTA nueva, exactamente una PK entera válida y una línea con
+serie no vacía coherente con esa PK; no habilita creación plural ni reutilización.
+
+Antes de cualquier escritura se comprueba que todas las líneas sean objetos JSON
+y que cada serie no nula sea una cadena, sin convertir otros tipos a texto.
+Los errores devuelven 400 asociados a `maquinaria_ids` o `lineas`, respectivamente.
+En legacy se siguen omitiendo series ausentes, null, vacías o solo con espacios;
+si no queda ninguna válida se mantiene el error controlado. Las cadenas válidas
+conservan el recorte de espacios y la comparación sin distinguir mayúsculas.
+Estas reglas no cambian permisos ni otorgan autoridad operativa a `ArriendoItem`.
