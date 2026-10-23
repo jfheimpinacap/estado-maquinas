@@ -193,3 +193,25 @@ Esta lectura no fabrica ítems desde la FK, las series ni `detalle_lineas`, no e
 datos y no alimenta disponibilidad, ubicación, documentos, estado, historial o retiro.
 `ArriendoItem` continúa siendo información en sombra, no una fuente operativa
 autoritativa.
+
+## 9. Participaciones de maquinaria en sombra
+
+`GET /maquinarias/{id}/participaciones-sombra` (sin slash final) requiere un usuario
+autenticado y activo, staff o superusuario, con la misma política del historial.
+Reutiliza `ENABLE_ARRIENDO_ITEM_SHADOW_READ`, apagado por defecto: desactivado devuelve
+404 al usuario autorizado; activado devuelve 404 si la maquinaria no existe y 200
+con una lista vacía si no tiene ítems.
+
+La respuesta contiene `maquinaria_id`, `fuente: "ArriendoItem"`,
+`cobertura_completa_demostrada: false` y `participaciones_sombra`. Cada fila incluye
+`arriendo_item_id`, `arriendo_id`, `maquinaria_id`, `maquinaria_legacy_id` (admite
+null) y `coincide_con_fk_legacy`, que compara la FK de cabecera con la del ítem.
+Solo se consultan ítems persistidos de la PK solicitada, ordenados por PK de ítem
+ascendente, conservando duplicados y todos los estados de cabecera.
+
+La consulta usa un join para evitar consultas por participación. No escribe ni
+fabrica relaciones desde FK legacy, series, posiciones o `detalle_lineas`; tampoco
+atribuye documentos de cabecera al ítem ni demuestra cobertura histórica completa,
+entrega, retiro, disponibilidad, ubicación o vigencia operativa. Conserva los
+contratos de lista, detalle e historial legacy y las lecturas de arriendos del
+Prompt 025. `ArriendoItem` permanece en sombra, sin autoridad operativa.
