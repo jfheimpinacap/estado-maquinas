@@ -4,6 +4,10 @@
 
 Este documento fija una baseline de dominio para evolucionar el sistema hacia arriendos con varias máquinas. Es neutral respecto de Django y de la futura edición ASP.NET Core: describe responsabilidades, reglas e invariantes, no clases o tablas obligatorias para una tecnología. Complementa el diseño incremental de [`multi-machine-design.md`](../architecture/multi-machine-design.md), que conserva el orden de migración y compatibilidad.
 
+El [contrato propuesto de escritura multi-máquina](../architecture/multi-machine-write-contract.md)
+conecta la baseline integrada hasta el Prompt 028 con un primer incremento ALTA
+experimental, sus protecciones y condiciones de activación; no habilita escritura plural.
+
 Se distinguen cuatro niveles para no confundir evidencia con intención:
 
 * **Implementado:** comportamiento verificable hoy en el repositorio.
