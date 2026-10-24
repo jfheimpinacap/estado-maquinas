@@ -372,3 +372,23 @@ Decisiones que necesitan respuesta del usuario, sin bloquear la redacción actua
 No se consultaron datos operacionales ni se inventariaron consumidores externos.
 La especificación se apoya en código y tests del checkout; no demuestra por sí
 misma paridad operacional, calidad de datos ni autorización para activar flags.
+
+## 10. Implementación parcial: validador interno del Prompt 030
+
+Existe `validate_multi_machine_alta_payload(payload)` en
+[multi_machine_alta.py](../../backend/api/services/multi_machine_alta.py). Solo
+valida la entrada y consulta referencias existentes, sin escrituras ni mutación
+del payload. Devuelve `ValidatedMultiMachineAlta`, una dataclass frozen con
+`cliente` y `obra` (instancias Django), `condiciones_comunes`
+(`MultiMachineAltaConditions`: fechas `date`, período de texto y tarifa `Decimal`)
+y `maquinarias` (tupla de instancias ordenadas por PK). Las instancias resueltas
+siguen siendo objetos Django; el resultado es interno, no una respuesta HTTP.
+Los errores usan `ValidationError` de DRF asociados al campo, con índices de
+línea cuando corresponde. Los tipos y rangos se validan antes de consultar;
+las máquinas se resuelven en lote, sin exigir serie.
+
+Todavía no hay escritor plural, endpoint, flag nuevo ni activación. Este componente
+no garantiza disponibilidad, exclusividad, idempotencia ni vigencia futura de
+las referencias: el escritor deberá revalidarlas en su transacción. Solo valida
+la tarifa recibida; duración, `cantidadPeriodo`, flete, IVA y totales no se calculan.
+Las convenciones comerciales propuestas en la sección 4 siguen pendientes.
